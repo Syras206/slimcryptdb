@@ -1,0 +1,31 @@
+{
+  "name": "slim-db",
+  "version": "1.0.0",
+  "description": "A slimline database written in nodeJS",
+  "main": "slimDB.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://Syras206@github.com/Syras206/slim-db.git"
+  },
+  "keywords": [
+    "nodejs",
+    "database"
+  ],
+  "author": "Shane Coates",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Syras206/slim-db/issues"
+  },
+  "homepage": "https://github.com/Syras206/slim-db#readme",
+  "dependencies": {
+    "crypto": "^1.0.1",
+    "events": "^3.3.0",
+    "fs": "^0.0.1-security"
+  }
+}
