@@ -1,13 +1,13 @@
 {
   "name": "slim-db",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A slimline database written in nodeJS",
   "main": "slimDB.js",
   "directories": {
     "test": "tests"
   },
   "scripts": {
-    "test": "jest"
+	"test": "jest"
   },
   "repository": {
     "type": "git",
@@ -15,7 +15,8 @@
   },
   "keywords": [
     "nodejs",
-    "database"
+    "database",
+    "api"
   ],
   "author": "Shane Coates",
   "license": "ISC",

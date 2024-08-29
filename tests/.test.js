@@ -95,6 +95,14 @@ describe('Test table CRUD', () => {
 	})
 });
 
+test('addMultiple should add multiple data to the database table', async () => {
+	const previousData = await db.readData(tableName, {});
+	const addedData = [{ name: 'Tyler', age: 35 }, { name: 'Dylan', age: 30 }];
+	await db.addMultiple(tableName, addedData);
+	const allData = await db.readData(tableName, {});
+	expect(allData).toEqual([...previousData, ...addedData]);
+});
+
 describe('Test transactions', () => {
 	test('commitTransaction should execute all queries for given transaction', async () => {
 		await db.startTransaction()

@@ -1,169 +1,287 @@
-const express = require('express')
-const bodyParser = require("body-parser")
-const fs = require('fs')
-
-let dbPath = './data'
-const dbPathIndex = process.argv.indexOf('--db');
-if (dbPathIndex > -1) {
-	dbPath = process.argv[dbPathIndex + 1];
-} else {
-  	console.log('DB path is not present.');
-}
-
-const path = require('path')
-const app = express()
-const files = fs.readdirSync(dbPath)
-const slimDB = require('./slimDB.js')
-const EventEmitter = require("events");
 const auth = require('./auth')
+const bodyParser = require("body-parser")
 
-app.use(bodyParser.json())
+class api {
 
-app.authorise = async (req) => {
-	const xAuth = req.header('x-auth')
-	let authorised = false
-	if (typeof app.authoriser !== 'undefined') {
-		if (xAuth === app.authoriser.header) authorised = true
+	constructor(app, db) {
+		this.app = app
+		this.db = db
+
+		app.use(bodyParser.json())
+
+		app.get('/list', (req, res) => this.getList(req, res))
+		app.get('/db/:dbName', (req, res) => this.getDatabase(req, res))
+		app.get('/db/:dbName/:id', (req, res) => this.getItem(req, res))
+
+		app.put('/db/:dbName/:id', (req, res) => this.updateItem(req, res))
+
+		app.delete('/db/:dbName/:id', (req, res) => this.deleteItem(req, res))
+
+		app.post('/auth', (req, res) => this.getAuth(req, res))
+		app.post('/db/:dbName', (req, res) => this.addItem(req, res))
 	}
-	if (!authorised) throw new Error('Forbidden')
 
-	return {
-		database: app.authoriser.database,
-		encryptionKey: app.authoriser.encryptionKey
-	}
-}
-
-app.getData = async (dbName, encryptionKey, options) => {
-	const db= new slimDB(dbPath, encryptionKey)
-	return await db.queryData(dbName, options);
-}
-
-app.addData = async (dbName, encryptionKey, data) => {
-	const db= new slimDB(dbPath, encryptionKey)
-	db.addData(dbName, data)
-}
-
-app.listDatabases = () => {
-	return files.filter((file) => path.extname(file) === '.db')
-}
-
-app.post('/auth', (req, res) => {
-	const payload = req.body
-
-	if (
-		!payload.database?.length > 0
-		|| !payload.encryptionKey?.length > 0
-	) res.status(500)
-		.json({
-			'status': false
-		})
-
-	app.authoriser = new auth(
-		payload.database,
-		payload.encryptionKey
-	)
-
-	res.type('application/json')
-		.status(200)
-		.json({
-			'status': true,
-			'x-auth': app.authoriser.header,
-		})
-})
-
-app.get('/list', (req, res) => {
-	res.send({
-		databases: app.listDatabases()
-	})
-})
-
-/**
- * Get the DB as json
- */
-app.get('/db', (req, res) => {
-	const q = typeof req.query.q == 'object'
-		? req.query.q
-		: {}
-
-	const options = {
-		filter: {
-			operator: 'and',
-			conditions: Object.entries(q).map(([key, value]) => {
-				let operator = '=='
-				if (value.includes('*', 0)) {
-					value = value.replace('*', '');
-					operator = 'like'
+	async addItem(req, res) {
+		const payload = req.body
+		this.authorise(req)
+			.then((json) => {
+				const dbName = req.params.dbName
+				if (!Object.values(json.databases).includes(dbName)) {
+					throw new Error('Unauthorised')
 				}
-				if (!isNaN(value)) value = Number(value)
-
-				return {
-					column: key,
-					operator: operator,
-					value: value
-				}                          
-			})
-		}
-	}
-
-	app.authorise(req)
-		.then((json) => {
-			app.getData(json.database, json.encryptionKey, options)
-				.then((json) => {
-					res
-						.type('application/json')
-						.status(200)
-						.json({
-							status: true,
-							data: json,
-						})
-				})
-				.catch(error => {
-					res
-						.status(500)
-						.json({
+				this.db.addData(dbName, payload)
+					.then((json) => {
+						res.status(200).json(json)
+					})
+					.catch(error => {
+						res.status(500).json({
 							status: false,
 							error: error.toString(),
 						})
-				})
-		})
-		.catch((error) => {
-			res
-				.status(403)
-				.json({
-					status: false,
-					error: error.toString(),
-				})
-		})
-})
-
-app.post('/db', (req, res) => {
-	const payload = req.body
-	app.authorise(req)
-		.then((json) => {
-			app.addData(json.database, json.encryptionKey, payload.data)
-				.then((json) => {
-					res.status(200).json({
-						status: true,
-						data: json,
 					})
-				})
-				.catch(error => {
-					res.status(500).json({
+			})
+			.catch((error) => {
+				res
+					.status(403)
+					.json({
 						status: false,
 						error: error.toString(),
 					})
-				})
-		})
-		.catch((error) => {
-			res
-				.status(403)
-				.json({
-					status: false,
-					error: error.toString(),
-				})
-		})
-})
+			})
+	}
 
-app.listen(3070, () => {
-	console.log('Server listening on port 3070')
-})
+	async authorise(req) {
+		const xAuth = req.header('x-auth')
+		let authorised = false
+		if (typeof this.app.authoriserValues !== 'undefined') {
+			if (xAuth === this.app.authoriserValues.header) authorised = true
+		}
+		if (!authorised) throw new Error('Forbidden')
+
+		return {
+			databases: this.app.authoriserValues.databases,
+			encryptionKey: this.app.authoriserValues.encryptionKey
+		}
+	}
+
+	buildRequestOptions(req) {
+		return {
+			filter: {
+				operator: 'and',
+				conditions: Object.entries(req.query).map(([key, value]) => {
+					let operator = '=='
+					if (value.includes('*', 0)) {
+						value = value.replace('*', '');
+						operator = 'like'
+					}
+					if (!isNaN(value)) value = Number(value)
+
+					return {
+						column: key,
+						operator: operator,
+						value: value
+					}
+				})
+			}
+		}
+	}
+
+	async deleteItem(req, res) {
+		const options = this.buildRequestOptions({
+			query: {
+				'id': req.params.id,
+			}
+		})
+
+		this.authorise(req)
+			.then((json) => {
+				const dbName = req.params.dbName
+				if (!Object.values(json.databases).includes(dbName)) {
+					throw new Error('Unauthorised')
+				}
+
+				this.db.deleteData(dbName, options)
+					.then((json) => {
+						res
+							.type('application/json')
+							.status(200)
+							.json(json)
+					})
+					.catch(error => {
+						res
+							.status(500)
+							.json({
+								status: false,
+								error: error.toString(),
+							})
+					})
+			})
+			.catch((error) => {
+				res
+					.status(403)
+					.json({
+						status: false,
+						error: error.toString(),
+					})
+			})
+	}
+
+	async getAuth(req, res) {
+		const payload = req.body
+
+		// if we don't have the required data then return false
+		if (!payload.secretKey?.length > 0)
+			res.status(500)
+				.json({'status': false})
+
+		new auth(
+			this.db,
+			payload.secretKey
+		)
+			.authorise()
+			.then(values => {
+				this.app.authoriserValues = values
+				res.type('application/json')
+					.status(200)
+					.json({
+						'status': true,
+						'x-auth': values.header,
+					})
+			})
+	}
+
+	async getDatabase(req, res) {
+		const options = this.buildRequestOptions(req)
+		this.authorise(req)
+			.then((json) => {
+				const dbName = req.params.dbName
+				if (!Object.values(json.databases).includes(dbName)) {
+					throw new Error('Unauthorised')
+				}
+
+				this.db.queryData(dbName, options)
+					.then((json) => {
+						res
+							.type('application/json')
+							.status(200)
+							.json(json)
+					})
+					.catch(error => {
+						res
+							.status(500)
+							.json({
+								status: false,
+								error: error.toString(),
+							})
+					})
+			})
+			.catch((error) => {
+				res
+					.status(403)
+					.json({
+						status: false,
+						error: error.toString(),
+					})
+			})
+	}
+
+	async getItem(req, res) {
+		const options = this.buildRequestOptions({
+			query: {
+				'id': req.params.id,
+			}
+		})
+
+		this.authorise(req)
+			.then((json) => {
+				const dbName = req.params.dbName
+				if (!Object.values(json.databases).includes(dbName)) {
+					throw new Error('Unauthorised')
+				}
+
+				this.db.queryData(dbName, options)
+					.then((json) => {
+						res
+							.type('application/json')
+							.status(200)
+							.json(json.pop())
+					})
+					.catch(error => {
+						res
+							.status(500)
+							.json({
+								status: false,
+								error: error.toString(),
+							})
+					})
+			})
+			.catch((error) => {
+				res
+					.status(403)
+					.json({
+						status: false,
+						error: error.toString(),
+					})
+			})
+	}
+
+	async getList(req, res) {
+		this.authorise(req)
+			.then(json => {
+				res.send({
+					databases: json.databases
+				})
+			})
+			.catch((error) => {
+				res
+					.status(403)
+					.json({
+						status: false,
+						error: error.toString(),
+					})
+			})
+	}
+
+	async updateItem(req, res) {
+		this.authorise(req)
+			.then((json) => {
+				const dbName = req.params.dbName
+				if (!Object.values(json.databases).includes(dbName)) {
+					throw new Error('Unauthorised')
+				}
+
+				this.db.updateData(
+					dbName,
+					{
+						'id': req.params.id,
+					},
+					req.body
+				)
+					.then((json) => {
+						res
+							.type('application/json')
+							.status(200)
+							.json(json)
+					})
+					.catch(error => {
+						res
+							.status(500)
+							.json({
+								status: false,
+								error: error.toString(),
+							})
+					})
+			})
+			.catch((error) => {
+				res
+					.status(403)
+					.json({
+						status: false,
+						error: error.toString(),
+					})
+			})
+	}
+
+}
+
+module.exports = api;
