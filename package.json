@@ -1,6 +1,6 @@
 {
   "name": "@syrasco/slim-db",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "A slimline database written in nodeJS with inbuilt API capability",
   "main": "slimDB.js",
   "directories": {
