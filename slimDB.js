@@ -199,11 +199,14 @@ class slimDB {
 		// Create a Decipher using the 256-bit Advanced Encryption Standards (AES) in Cipher Block Chaining (CBC) mode with the provided key and IV
 		const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(key), iv);
 
-		// Generate a decrypted value from the provided data
-		const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-
-		// Return the decrypted value
-		return JSON.parse(decrypted.toString());
+		try {
+			// Generate a decrypted value from the provided data
+			const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()])
+			// Return the decrypted value
+			return JSON.parse(decrypted.toString());
+		} catch (error) {
+			throw new Error('Decryption failed. Are you sure your encryption key is correct?')
+		}
 	}
 
 
