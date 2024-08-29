@@ -1,9 +1,18 @@
 const express = require('express')
 const bodyParser = require("body-parser")
 const fs = require('fs')
+
+let dbPath = './data'
+const dbPathIndex = process.argv.indexOf('--db');
+if (dbPathIndex > -1) {
+	dbPath = process.argv[dbPathIndex + 1];
+} else {
+  	console.log('DB path is not present.');
+}
+
 const path = require('path')
 const app = express()
-const files = fs.readdirSync('./data')
+const files = fs.readdirSync(dbPath)
 const slimDB = require('./slimDB.js')
 const EventEmitter = require("events");
 const auth = require('./auth')
@@ -25,12 +34,12 @@ app.authorise = async (req) => {
 }
 
 app.getData = async (dbName, encryptionKey, options) => {
-	const db= new slimDB('./data', encryptionKey)
+	const db= new slimDB(dbPath, encryptionKey)
 	return await db.queryData(dbName, options);
 }
 
 app.addData = async (dbName, encryptionKey, data) => {
-	const db= new slimDB('./data', encryptionKey)
+	const db= new slimDB(dbPath, encryptionKey)
 	db.addData(dbName, data)
 }
 
