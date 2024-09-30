@@ -160,11 +160,11 @@ class slimDB {
 					break
 
 				default:
-					this.releaseLock(tableName)
+					await this.releaseLock(tableName)
 					throw new Error(`Unknown operation type: ${type}`)
 			}
 
-			this.releaseLock(tableName)
+			await this.releaseLock(tableName)
 		}
 
 		// remove the transaction from the map
@@ -255,7 +255,7 @@ class slimDB {
 			// get or create the transaction
 			transactionId ??= await this.startTransaction()
 			// validate the transaction first
-			this.validateTransaction(transactionId)
+			await this.validateTransaction(transactionId)
 			// get the transaction object from the map
 			const transaction = this.transactions.get(transactionId)
 
@@ -348,7 +348,7 @@ class slimDB {
 
 		await fs.promises.unlink(filePath)
 
-		this.releaseLock(tableName)
+		await this.releaseLock(tableName)
 
 		this.eventEmitter.emit('deleteTable', tableName)
 
