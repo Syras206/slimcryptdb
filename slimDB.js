@@ -11,7 +11,7 @@ class slimDB {
 		this.indexes = new Map()
 		this.locks = new Map()
 		this.transactions = new Map()
-		this.encrypt = mode == 'production'
+		this.encrypt = mode === 'production'
 	}
 
 	async acquireLock(tableName, transactionId) {
@@ -244,7 +244,7 @@ class slimDB {
 			// Return the decrypted value
 			return JSON.parse(decrypted.toString())
 		} catch (error) {
-			if (this.encrypt == false) return JSON.parse(data)
+			if (this.encrypt === false) return JSON.parse(data)
 			throw new Error('Decryption failed. Are you sure your encryption key is correct?')
 		}
 	}
@@ -309,7 +309,7 @@ class slimDB {
 				})
 			}
 
-			if (removedData.length == 0) {
+			if (removedData.length === 0) {
 				throw new Error('Nothing found to delete')
 			}
 
@@ -356,7 +356,7 @@ class slimDB {
 	}
 
 	encryptData(data) {
-		if (this.encrypt == false) return JSON.stringify(data)
+		if (this.encrypt === false) return JSON.stringify(data)
 
 		const key = this.encryptionKey
 		// Generate an Initialization Vector (IV) and store as constant
