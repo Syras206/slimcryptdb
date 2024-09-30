@@ -386,6 +386,12 @@ class slimDB {
 				return item[column] === value
 			case "!=":
 				return item[column] !== value
+			case "in":
+				if (Array.isArray(value)) {
+					// this is an array, so check the column value is included in the array of values passed in
+					return value.includes(item[column])
+				}
+				throw new Error(`Invalid value for ${column}, you must provide an array of values.`)
 			case "like":
 				// use regex to test if the item is similar to the query non case sensitive
 				return new RegExp(value, "i").test(item[column])
