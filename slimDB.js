@@ -491,7 +491,7 @@ class slimDB {
 			const data = await fs.promises.readFile(filePath, "utf8")
 			const decryptedData = this.decryptData(data)
 
-			const results = decryptedData.rows.filter((item) => {
+			return decryptedData.rows.filter((item) => {
 				// if the item is not an object then skip it
 				if (!this.isObject(item)) return false
 				// if the query is empty then include all items
@@ -504,8 +504,6 @@ class slimDB {
 						: item[key] === value
 				})
 			})
-
-			return results
 		} catch (error) {
 			console.error(`Error reading data from file ${tableName}:`, error)
 			throw error
