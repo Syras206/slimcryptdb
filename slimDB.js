@@ -244,8 +244,13 @@ class slimDB {
 			// Return the decrypted value
 			return JSON.parse(decrypted.toString())
 		} catch (error) {
-			if (this.encrypt === false) return JSON.parse(data)
-			throw new Error('Decryption failed. Are you sure your encryption key is correct?')
+			// something went wrong while decrypting the data. It could be that we are dealing with an unencrypted string
+			try {
+				// try and parse the data as JSON - it could be that the DB mode was changed after the last operation
+				return JSON.parse(data)
+			} catch (error) {
+				throw new Error('Decryption failed. Are you sure your encryption key is correct?')
+			}
 		}
 	}
 
