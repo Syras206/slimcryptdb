@@ -52,6 +52,9 @@ console.log('Store this key securely:', encryptionKey.toString('hex'))
 // Create database instance with the key
 const db = new SlimCryptDB('./data', encryptionKey)
 
+// wait until the database is ready
+await db.ready()
+
 // Define schema for data validation
 const userSchema = {
   type: 'object',
@@ -397,6 +400,7 @@ stmt.run('Alice', 'alice@example.com')
 // After (SlimCryptDB)
 const { SlimCryptDB, generateEncryptionKey } = require(''slimcryptdb'')
 const db = new SlimCryptDB('./data', generateEncryptionKey())
+await db.ready()
 
 await db.createTable('users', {
   type: 'object',
@@ -422,6 +426,7 @@ db.insert({ name: 'Alice', email: 'alice@example.com' }, callback)
 const { SlimCryptDB, generateEncryptionKey } = require(''slimcryptdb'')
 const db = new SlimCryptDB('./data', generateEncryptionKey())
 
+await db.ready()
 await db.createTable('users')
 await db.addData('users', { name: 'Alice', email: 'alice@example.com' })
 ```
