@@ -1,8 +1,8 @@
 {
 	"name": "slimcryptdb",
-	"version": "2.0.0",
+	"version": "2.0.1",
 	"description": "A minimalist, ultra-secure embedded database for Node.js applications",
-	"main": "slimDB.js",
+	"main": "SlimCryptDB.js",
 	"scripts": {
 	  "test": "jest --verbose --coverage --detectOpenHandles",
 	  "test:watch": "jest --watch",
