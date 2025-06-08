@@ -1062,6 +1062,11 @@ class SlimCryptDB {
             default:
                 throw new Error(`Unknown operation type: ${operation.type}`);
         }
+
+		// Clear operation data
+		if (operation.data && Buffer.isBuffer(operation.data)) {
+			operation.data.fill(0)
+		}
     }
 
     async _applyAddOperation(operation) {
