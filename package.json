@@ -7,7 +7,7 @@
 	  "test": "jest --verbose --coverage --detectOpenHandles",
 	  "test:watch": "jest --watch",
 	  "test:security": "npm audit && node security-test.js",
-	  "build": "npm run test && npm run test:security",
+	  "build": "npm run test && npm run test:security && npm run docs && npm run lint && npm run format",
 	  "docs": "jsdoc -c jsdoc.json",
 	  "lint": "eslint *.js",
 	  "format": "prettier --write *.js"
