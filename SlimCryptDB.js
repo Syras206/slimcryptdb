@@ -12,7 +12,7 @@ const gunzip = util.promisify(zlib.gunzip);
 
 /**
  * SlimCryptDB - A lightweight, secure, high-performance encrypted database
- * Features: AES-256-GCM encryption, WAL, indexing, schema validation, compression
+ * Features: AES-256-GCM encryption, encrypted WAL, indexing, schema validation, compression
  */
 class SlimCryptDB {
   constructor(databaseDir, encryptionKey = null, options = {}) {
@@ -26,6 +26,7 @@ class SlimCryptDB {
       maxWalSize: 100 * 1024 * 1024, // 100MB
       checkpointInterval: 30000, // 30 seconds
       lockTimeout: 10000, // 10 seconds - increased timeout
+      walPaddingSize: 1024, // Fixed size for WAL entries to prevent size-based attacks
       ...options,
     };
 
@@ -41,8 +42,30 @@ class SlimCryptDB {
     this.checkpointTimer = null; // Store timer reference for cleanup
     this.isClosed = false;
 
-    this._initializeDatabase();
-    this._startCheckpointScheduler();
+    // WAL encryption properties
+    this.walSalt = null;
+    this.walKey = null;
+    this.walEncrypted = false;
+
+    // Track initialization state
+    this.initializationPromise = null;
+    this.isInitialized = false;
+
+    // Start initialization immediately
+    this.initializationPromise = this._initializeDatabase();
+  }
+
+  // ensure initialization is complete
+  async ensureInitialized() {
+    if (!this.isInitialized) {
+      await this.initializationPromise;
+    }
+  }
+
+  // check if database is ready
+  async ready() {
+    await this.ensureInitialized();
+    return this.isInitialized;
   }
 
   /**
@@ -56,11 +79,61 @@ class SlimCryptDB {
         recursive: true,
       });
 
+      // initialize WAL encryption before WAL recovery
+      await this._initializeWALEncryption();
+
       if (this.options.walEnabled) {
         await this._recoverFromWAL();
       }
+
+      // Mark as initialized only after everything is complete
+      this.isInitialized = true;
+      this._startCheckpointScheduler();
     } catch (error) {
       throw new Error(`Database initialization failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Initialize WAL encryption salt and key (ALWAYS use persistent salt)
+   */
+  async _initializeWALEncryption() {
+    const saltPath = path.join(this.databaseDir, "wal", ".salt");
+
+    try {
+      // Try to load existing salt
+      const existingSalt = await fs.readFile(saltPath);
+      this.walSalt = existingSalt;
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        // Generate new salt if it doesn't exist
+        this.walSalt = crypto.randomBytes(32);
+        // Save salt for future use (only if encryption is enabled)
+        if (this.options.encrypt) {
+          await fs.writeFile(saltPath, this.walSalt);
+        }
+      } else {
+        throw error;
+      }
+    }
+
+    // Derive WAL key from main encryption key and persistent salt
+    if (this.options.encrypt && this.encryptionKey && this.options.walEnabled) {
+      this.walKey = crypto.pbkdf2Sync(
+        this.encryptionKey,
+        this.walSalt,
+        100000,
+        32,
+        "sha256",
+      );
+      this.walEncrypted = true;
+    } else {
+      this.walEncrypted = false;
+    }
+
+    // Validate that encryption is properly set up
+    if (this.options.encrypt && this.options.walEnabled && !this.walEncrypted) {
+      throw new Error("WAL encryption failed to initialize properly");
     }
   }
 
@@ -69,6 +142,32 @@ class SlimCryptDB {
    */
   _generateSecureKey() {
     return crypto.randomBytes(32); // 256-bit key for AES-256-GCM
+  }
+
+  /**
+   * Derive WAL-specific encryption key from main encryption key
+   */
+  _deriveWALKey() {
+    if (!this.walSalt) {
+      throw new Error("WAL salt not initialized");
+    }
+
+    if (!this.encryptionKey) {
+      throw new Error("Encryption key not provided");
+    }
+
+    try {
+      // Use synchronous PBKDF2 to avoid timing issues
+      return crypto.pbkdf2Sync(
+        this.encryptionKey,
+        this.walSalt,
+        100000, // Strong iteration count
+        32, // 256-bit key
+        "sha256",
+      );
+    } catch (error) {
+      throw new Error(`WAL key derivation failed: ${error.message}`);
+    }
   }
 
   /**
@@ -145,6 +244,153 @@ class SlimCryptDB {
   }
 
   /**
+   * Encrypt WAL data using derived WAL key with padding to prevent size-based attacks
+   */
+  _encryptWALData(data) {
+    if (!this.options.walEnabled || !this.options.encrypt) {
+      return JSON.stringify(data);
+    }
+
+    if (!this.walEncrypted || !this.walKey || !this.walSalt) {
+      throw new Error(
+        "WAL encryption not properly initialized - cannot write unencrypted data",
+      );
+    }
+
+    try {
+      const plaintext = JSON.stringify(data);
+      const walKey = this.walKey || this._deriveWALKey();
+      const iv = crypto.randomBytes(16); // Unique IV for each WAL encryption
+
+      // Apply padding to prevent size-based leakage attacks
+      const paddedPlaintext = this._applyWALPadding(plaintext);
+
+      const cipher = crypto.createCipheriv("aes-256-gcm", walKey, iv);
+
+      let ciphertext = cipher.update(paddedPlaintext, "utf8");
+      ciphertext = Buffer.concat([ciphertext, cipher.final()]);
+
+      const authTag = cipher.getAuthTag();
+
+      // Format: WAL:iv:authTag:ciphertext (all hex encoded with WAL prefix)
+      return (
+        "WAL:" +
+        iv.toString("hex") +
+        ":" +
+        authTag.toString("hex") +
+        ":" +
+        ciphertext.toString("hex")
+      );
+    } catch (error) {
+      throw new Error(`WAL encryption failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Decrypt WAL data using derived WAL key
+   */
+  _decryptWALData(encryptedData) {
+    if (!this.options.encrypt) {
+      try {
+        return JSON.parse(encryptedData);
+      } catch {
+        throw new Error("Invalid unencrypted WAL data format");
+      }
+    }
+
+    try {
+      // Check for WAL prefix
+      if (!encryptedData.startsWith("WAL:")) {
+        // Handle legacy unencrypted WAL files
+        try {
+          return JSON.parse(encryptedData);
+        } catch {
+          throw new Error("Invalid WAL data format");
+        }
+      }
+
+      if (!this.walEncrypted || !this.walKey) {
+        throw new Error("Cannot decrypt WAL data: encryption not initialized");
+      }
+
+      const walData = encryptedData.substring(4); // Remove 'WAL:' prefix
+      const parts = walData.split(":");
+      if (parts.length !== 3) {
+        throw new Error("Invalid encrypted WAL data format");
+      }
+
+      const iv = Buffer.from(parts[0], "hex");
+      const authTag = Buffer.from(parts[1], "hex");
+      const ciphertext = Buffer.from(parts[2], "hex");
+
+      const walKey = this.walKey || this._deriveWALKey();
+      const decipher = crypto.createDecipheriv("aes-256-gcm", walKey, iv);
+      decipher.setAuthTag(authTag);
+
+      let paddedPlaintext = decipher.update(ciphertext);
+      paddedPlaintext = Buffer.concat([paddedPlaintext, decipher.final()]);
+
+      // Remove padding
+      const plaintext = this._removeWALPadding(
+        paddedPlaintext.toString("utf8"),
+      );
+
+      return JSON.parse(plaintext);
+    } catch (error) {
+      throw new Error(`WAL decryption failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Apply PKCS#7-style padding with fixed size to prevent size-based attacks
+   */
+  _applyWALPadding(plaintext) {
+    const blockSize = this.options.walPaddingSize;
+    const textLength = Buffer.byteLength(plaintext, "utf8");
+
+    if (textLength >= blockSize) {
+      // For large entries, use multiple blocks
+      const blocksNeeded = Math.ceil(textLength / blockSize);
+      const paddedSize = blocksNeeded * blockSize;
+      const paddingLength = paddedSize - textLength;
+
+      const padding = Buffer.alloc(paddingLength, paddingLength);
+      return plaintext + padding.toString("utf8");
+    } else {
+      // For small entries, pad to fixed block size
+      const paddingLength = blockSize - textLength;
+      const padding = Buffer.alloc(paddingLength, paddingLength);
+      return plaintext + padding.toString("utf8");
+    }
+  }
+
+  /**
+   * Remove PKCS#7-style padding
+   */
+  _removeWALPadding(paddedText) {
+    if (paddedText.length === 0) return paddedText;
+
+    const lastByte = paddedText.charCodeAt(paddedText.length - 1);
+
+    // Validate padding
+    if (lastByte > 0 && lastByte <= this.options.walPaddingSize) {
+      const paddingStart = paddedText.length - lastByte;
+
+      // Verify all padding bytes are the same
+      for (let i = paddingStart; i < paddedText.length; i++) {
+        if (paddedText.charCodeAt(i) !== lastByte) {
+          // Invalid padding, return as-is
+          return paddedText;
+        }
+      }
+
+      return paddedText.substring(0, paddingStart);
+    }
+
+    return paddedText;
+  }
+
+  /**
    * Compress data using gzip (applied AFTER encryption)
    */
   async _compressData(data) {
@@ -194,6 +440,9 @@ class SlimCryptDB {
   async _writeWAL(operation) {
     if (!this.options.walEnabled || this.isClosed) return;
 
+    // Always ensure initialization is complete before WAL operations
+    await this.ensureInitialized();
+
     const walEntry = {
       sequence: ++this.walSequence,
       timestamp: Date.now(),
@@ -220,14 +469,20 @@ class SlimCryptDB {
     if (this.walBuffer.length === 0 || this.isClosed) return;
 
     const walFile = path.join(this.databaseDir, "wal", `wal-${Date.now()}.log`);
-    const walData =
-      this.walBuffer.map((entry) => JSON.stringify(entry)).join("\n") + "\n";
 
-    // initialize the file if it doesn't exist
+    // Encrypt each WAL entry individually to maintain entry boundaries
+    const encryptedEntries = this.walBuffer.map((entry) => {
+      const encryptedEntry = this._encryptWALData(entry);
+      return encryptedEntry;
+    });
+
+    const walData = encryptedEntries.join("\n") + "\n";
+
+    // Initialize the file directory if it doesn't exist
     try {
       await fs.mkdir(path.dirname(walFile), { recursive: true });
     } catch (error) {
-      //
+      // Directory already exists
     }
 
     await fs.writeFile(walFile, walData, { flag: "a" });
@@ -240,20 +495,40 @@ class SlimCryptDB {
   async _recoverFromWAL() {
     try {
       const walDir = path.join(this.databaseDir, "wal");
+
+      // Check if WAL directory exists
+      try {
+        await fs.access(walDir);
+      } catch (error) {
+        // WAL directory doesn't exist, nothing to recover
+        return;
+      }
+
       const walFiles = await fs.readdir(walDir);
+      const logFiles = walFiles.filter((file) => file.endsWith(".log")).sort();
 
-      for (const walFile of walFiles.sort()) {
+      for (const walFile of logFiles) {
+        if (walFile === ".salt") continue;
+
         const walPath = path.join(walDir, walFile);
-        const walContent = await fs.readFile(walPath, "utf8");
-        const walEntries = walContent.trim().split("\n").filter(Boolean);
 
-        for (const entryLine of walEntries) {
-          try {
-            const walEntry = JSON.parse(entryLine);
-            await this._applyWALEntry(walEntry);
-          } catch (error) {
-            console.warn(`Skipping corrupted WAL entry: ${error.message}`);
+        try {
+          const walContent = await fs.readFile(walPath, "utf8");
+          const walEntries = walContent.trim().split("\n").filter(Boolean);
+
+          for (const entryLine of walEntries) {
+            try {
+              // Decrypt WAL entry
+              const walEntry = this._decryptWALData(entryLine);
+              await this._applyWALEntry(walEntry);
+            } catch {
+              // If decryption fails, skip entry
+            }
           }
+        } catch (error) {
+          console.warn(
+            `Failed to process WAL file ${walFile}: ${error.message}`,
+          );
         }
       }
     } catch (error) {
@@ -312,10 +587,17 @@ class SlimCryptDB {
       const cutoffTime = Date.now() - 24 * 60 * 60 * 1000; // 24 hours
 
       for (const walFile of walFiles) {
+        if (walFile === ".salt") continue;
+
         const filePath = path.join(walDir, walFile);
-        const stats = await fs.stat(filePath);
-        if (stats.mtime.getTime() < cutoffTime) {
-          await fs.unlink(filePath);
+
+        try {
+          const stats = await fs.stat(filePath);
+          if (stats.mtime.getTime() < cutoffTime) {
+            await fs.unlink(filePath);
+          }
+        } catch (error) {
+          // File might have been deleted already
         }
       }
     } finally {
@@ -617,6 +899,8 @@ class SlimCryptDB {
    * Enhanced CRUD operations with validation and indexing
    */
   async addData(tableName, data, transactionId = null) {
+    await this.ensureInitialized(); // Ensure initialization before any data operations
+
     if (!transactionId) {
       transactionId = await this.startTransaction();
 
@@ -658,6 +942,8 @@ class SlimCryptDB {
    * Update data in a table with schema validation
    */
   async updateData(tableName, filter, updateData, transactionId = null) {
+    await this.ensureInitialized(); // Ensure initialization before any data operations
+
     if (!transactionId) {
       transactionId = await this.startTransaction();
 
@@ -724,6 +1010,8 @@ class SlimCryptDB {
    * Delete data from a table
    */
   async deleteData(tableName, filter, transactionId = null) {
+    await this.ensureInitialized(); // Ensure initialization before any data operations
+
     if (!transactionId) {
       transactionId = await this.startTransaction();
 
@@ -1264,7 +1552,12 @@ class SlimCryptDB {
     if (this.encryptionKey && Buffer.isBuffer(this.encryptionKey)) {
       this.encryptionKey.fill(0);
     }
+    if (this.walEncryptionSalt && Buffer.isBuffer(this.walEncryptionSalt)) {
+      this.walEncryptionSalt.fill(0);
+    }
+
     this.encryptionKey = null;
+    this.walEncryptionSalt = null;
 
     // Remove all event listeners
     this.eventEmitter.removeAllListeners();
