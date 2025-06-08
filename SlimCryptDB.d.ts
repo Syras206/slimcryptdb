@@ -256,7 +256,7 @@ declare function generateEncryptionKey(): Buffer;
  * @param options Configuration options
  * @returns SlimCryptDB instance with secure defaults
  */
-declare function createSecureDatabase(databaseDir: string, options?: SlimCryptDB.DatabaseOptions): SlimCryptDB;
+declare function createSecureDatabase(databaseDir: string, encryptionKey?: Buffer | null, options?: SlimCryptDB.DatabaseOptions): SlimCryptDB;
 
 export {
     SlimCryptDB,
