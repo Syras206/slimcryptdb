@@ -1,4 +1,4 @@
-// Type definitions for SlimCryptDB v2.0.0
+// Type definitions for SlimCryptDB v2.1.0 - Enhanced with WAL Encryption
 // Project: SlimCryptDB
 // Definitions by: SlimCryptDB Contributors
 
@@ -15,6 +15,7 @@ declare namespace SlimCryptDB {
         maxWalSize?: number;
         checkpointInterval?: number;
         lockTimeout?: number;
+        walPaddingSize?: number;
     }
 
     interface JSONSchema {
@@ -76,6 +77,7 @@ declare namespace SlimCryptDB {
         uptime: number;
         locks: number;
         lockQueue: number;
+        walEncrypted?: boolean; // New: Indicates if WAL encryption is enabled
     }
 
     interface WALEntry {
@@ -232,6 +234,14 @@ declare class SlimCryptDB extends EventEmitter {
     on(event: 'rollbackTransaction', listener: (transactionId: SlimCryptDB.TransactionId) => void): this;
 
     removeListener(event: SlimCryptDB.EventType, listener: (...args: any[]) => void): this;
+
+    // Enhanced private methods (for documentation purposes)
+    private _deriveWALKey(): Buffer | null;
+    private _encryptWALData(data: any): string;
+    private _decryptWALData(encryptedData: string): any;
+    private _applyWALPadding(plaintext: string): string;
+    private _removeWALPadding(paddedText: string): string;
+    private _initializeWALEncryption(): Promise<void>;
 }
 
 /**
