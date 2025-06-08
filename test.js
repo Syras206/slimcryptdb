@@ -7,8 +7,6 @@ const {
 const { promises: fs } = require("fs");
 const path = require("path");
 
-let sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 describe("SlimCryptDB Tests", () => {
   let db;
   let testDir;
@@ -54,7 +52,7 @@ describe("SlimCryptDB Tests", () => {
 
     test("should create secure database instance", async () => {
       const secureDb = createSecureDatabase("./test-secure");
-      await sleep(100);
+      await secureDb.ready()
       expect(secureDb).toBeInstanceOf(SlimCryptDB);
       await secureDb.close();
       await fs.rm("./test-secure", { recursive: true });
