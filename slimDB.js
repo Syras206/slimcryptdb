@@ -1184,6 +1184,12 @@ class SlimCryptDB {
         this.locks.clear();
         this.transactions.clear();
 
+		// Securely wipe encryption key
+		if (this.encryptionKey && Buffer.isBuffer(this.encryptionKey)) {
+			this.encryptionKey.fill(0)
+		}
+		this.encryptionKey = null
+
         // Remove all event listeners
         this.eventEmitter.removeAllListeners();
     }
