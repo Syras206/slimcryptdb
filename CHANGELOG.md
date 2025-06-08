@@ -5,6 +5,22 @@ All notable changes to SlimCryptDB will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 08-June-2025
+
+### 👾 Security Fix for unencrypted wal logs
+
+Fixed a security issue with wal logs, ensuring that any logs added are fully encrypted.
+
+---
+
+## [2.0.1] - 08-June-2025
+
+### 👾 Bug Fix
+
+Fixed a reference in package.json to slimDB.js which has recently been changed to SlimCryptDB.js
+
+---
+
 ## [2.0.0] - 08-June-2025
 
 ### 🎉 Upgraded Release
@@ -79,14 +95,6 @@ This is the first major upgrade of SlimCryptDB (formally SlimDB), a world-class 
 
 #### Development Utilities
 - **Schema Validator**: Development-time schema validation
-
----
-
-## [2.0.1] - 08-June-2025
-
-### 👾 Bug Fix
-
-Fixed a reference in package.json to slimDB.js which has recently been changed to SlimCryptDB.js
 
 ---
 
