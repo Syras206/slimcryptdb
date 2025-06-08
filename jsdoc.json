@@ -1,0 +1,30 @@
+{
+	"source": {
+	  "include": [
+		"./SlimCryptDB.js",
+		"./README.md"
+	  ],
+	  "includePattern": "\\.(js|jsx)$",
+	  "exclude": [
+		"node_modules/",
+		"test/",
+		"benchmark.js",
+		"security-test.js"
+	  ]
+	},
+	"opts": {
+	  "destination": "./docs/",
+	  "recurse": true
+	},
+	"plugins": [
+	  "plugins/markdown"
+	],
+	"templates": {
+	  "cleverLinks": false,
+	  "monospaceLinks": false
+	},
+	"metadata": {
+	  "title": "SlimCryptDB Documentation",
+	  "description": "A minimalist, ultra-secure embedded database for Node.js applications"
+	}
+  }

@@ -1,33 +1,89 @@
 {
-  "name": "@syrasco/slim-db",
-  "version": "1.1.4",
-  "description": "A slimline database written in nodeJS",
-  "main": "slimDB.js",
-  "directories": {
-    "test": "tests"
-  },
-  "scripts": {
-    "test": "jest"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://Syras206@github.com/Syras206/slim-db.git"
-  },
-  "keywords": [
-    "nodejs",
-    "database"
-  ],
-  "author": "Shane Coates",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/Syras206/slim-db/issues"
-  },
-  "homepage": "https://github.com/Syras206/slim-db#readme",
-  "dependencies": {
-    "body-parser": "^1.20.2",
-    "crypto": "^1.0.1",
-    "ejs": "^3.1.9",
-    "events": "^3.3.0",
-    "fs": "^0.0.1-security"
+	"name": "slimcryptdb",
+	"version": "2.0.0",
+	"description": "A minimalist, ultra-secure embedded database for Node.js applications",
+	"main": "slimDB.js",
+	"scripts": {
+	  "test": "jest --verbose --coverage --detectOpenHandles",
+	  "test:watch": "jest --watch",
+	  "test:security": "npm audit && node security-test.js",
+	  "build": "npm run test && npm run test:security && npm run docs && npm run lint && npm run format",
+	  "docs": "jsdoc -c jsdoc.json",
+	  "lint": "eslint *.js",
+	  "format": "prettier --write *.js"
+	},
+	"keywords": [
+	  "database",
+	  "encryption",
+	  "embedded",
+	  "lightweight",
+	  "security",
+	  "nosql",
+	  "json",
+	  "edge-computing",
+	  "iot",
+	  "serverless",
+	  "aes-256-gcm",
+	  "wal",
+	  "acid",
+	  "transactions"
+	],
+	"author": {
+	  "name": "Shane Coates",
+	  "url": "https://github.com/Syras206"
+	},
+	"license": "MIT",
+	"repository": {
+	  "type": "git",
+	  "url": "https://github.com/Syras206/slimcryptdb.git"
+	},
+	"bugs": {
+	  "url": "https://github.com/Syras206/slimcryptdb/issues"
+	},
+	"homepage": "https://github.com/Syras206/slimcryptdb#readme",
+	"engines": {
+	  "node": ">=14.0.0"
+	},
+	"files": [
+	  "SlimCryptDB.js",
+	  "SlimCryptDB.d.ts",
+	  "README.md",
+	  "LICENSE",
+	  "CHANGELOG.md"
+	],
+	"devDependencies": {
+	  "jest": "^29.7.0",
+	  "eslint": "^8.57.0",
+	  "prettier": "^3.0.0",
+	  "jsdoc": "^4.0.2",
+	  "@types/node": "^20.0.0"
+	},
+	"jest": {
+	  "testEnvironment": "node",
+	  "collectCoverageFrom": [
+		"SlimCryptDB.js"
+	  ],
+	  "coverageReporters": [
+		"text",
+		"lcov",
+		"html"
+	  ],
+	  "testTimeout": 30000
+	},
+	"eslintConfig": {
+	  "env": {
+		"node": true,
+		"es2021": true,
+		"jest": true
+	  },
+	  "extends": "eslint:recommended",
+	  "parserOptions": {
+		"ecmaVersion": 2021,
+		"sourceType": "module"
+	  },
+	  "rules": {
+		"no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+		"no-console": "off"
+	  }
+	}
   }
-}
