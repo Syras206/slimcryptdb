@@ -191,6 +191,12 @@ declare class SlimCryptDB extends EventEmitter {
      */
     dropIndex(indexName: string): Promise<void>;
 
+	/**
+	 * Ready function
+	 * @returns Promise that resolves when the database is ready
+	 */
+	ready(): Promise<void>;
+
     /**
      * Start a new transaction
      * @param isolationLevel Transaction isolation level
