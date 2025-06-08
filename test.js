@@ -52,7 +52,7 @@ describe("SlimCryptDB Tests", () => {
 
     test("should create secure database instance", async () => {
       const secureDb = createSecureDatabase("./test-secure");
-      await secureDb.ready()
+      await secureDb.ready();
       expect(secureDb).toBeInstanceOf(SlimCryptDB);
       await secureDb.close();
       await fs.rm("./test-secure", { recursive: true });
