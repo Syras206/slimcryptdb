@@ -1307,7 +1307,7 @@ function createSecureDatabase(databaseDir, encryptionKey = null, options = {}) {
 }
 
 module.exports = {
-  slimDB: SlimCryptDB,
+  SlimCryptDB,
   generateEncryptionKey,
   createSecureDatabase,
 };
