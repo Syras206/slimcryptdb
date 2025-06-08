@@ -82,6 +82,14 @@ This is the first major upgrade of SlimCryptDB (formally SlimDB), a world-class 
 
 ---
 
+## [2.0.1] - 08-June-2025
+
+### 👾 Bug Fix
+
+Fixed a reference in package.json to slimDB.js which has recently been changed to SlimCryptDB.js
+
+---
+
 ## Future Roadmap
 
 #### Enhanced Security
