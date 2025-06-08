@@ -1068,15 +1068,13 @@ class SlimCryptDB {
         if (!this.lockQueue.has(tableName)) {
           this.lockQueue.set(tableName, []);
         }
-        this.lockQueue
-          .get(tableName)
-          .push({
-            transactionId,
-            resolve,
-            reject,
-            startTime,
-            timeout: lockTimeout,
-          });
+        this.lockQueue.get(tableName).push({
+          transactionId,
+          resolve,
+          reject,
+          startTime,
+          timeout: lockTimeout,
+        });
       };
 
       attemptLock();

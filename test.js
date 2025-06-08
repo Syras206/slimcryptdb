@@ -14,10 +14,7 @@ describe("SlimCryptDB Tests", () => {
   let tableName;
 
   beforeAll(async () => {
-    testDir = path.join(
-      __dirname,
-      "test-data",
-    );
+    testDir = path.join(__dirname, "test-data");
     encryptionKey = generateEncryptionKey();
     db = new SlimCryptDB(testDir, encryptionKey, {
       encrypt: true,
@@ -163,24 +160,24 @@ describe("SlimCryptDB Tests", () => {
       expect(secondPage[0].name).toBe("Carol Jones");
     });
 
-	test("should update data", async () => {
-		const data = await db.readData(tableName, { name: "Alice Cooper" });
-		const updatedData = { ...data[0], age: 31 };
+    test("should update data", async () => {
+      const data = await db.readData(tableName, { name: "Alice Cooper" });
+      const updatedData = { ...data[0], age: 31 };
 
-		await db.updateData(tableName, { id: data[0].id }, updatedData);
+      await db.updateData(tableName, { id: data[0].id }, updatedData);
 
-		const newData = await db.readData(tableName, { name: "Alice Cooper" });
-		expect(newData[0].age).toBe(31);
-	});
+      const newData = await db.readData(tableName, { name: "Alice Cooper" });
+      expect(newData[0].age).toBe(31);
+    });
 
-	test("should delete data", async () => {
-		const data = await db.readData(tableName, { name: "Alice Cooper" });
+    test("should delete data", async () => {
+      const data = await db.readData(tableName, { name: "Alice Cooper" });
 
-		await db.deleteData(tableName, { id: data[0].id });
+      await db.deleteData(tableName, { id: data[0].id });
 
-		const newData = await db.readData(tableName, { name: "Alice Cooper" });
-		expect(newData).toHaveLength(0);
-	});
+      const newData = await db.readData(tableName, { name: "Alice Cooper" });
+      expect(newData).toHaveLength(0);
+    });
   });
 
   describe("Indexing System", () => {
@@ -198,9 +195,9 @@ describe("SlimCryptDB Tests", () => {
       };
 
       await expect(db.addData(tableName, duplicateEmail)).rejects.toThrow(
-		"Unique constraint violation",
+        "Unique constraint violation",
       );
-	});
+    });
 
     test("should create compound index", async () => {
       await expect(
