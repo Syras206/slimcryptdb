@@ -45,8 +45,10 @@
 		"node": ">=14.0.0"
 	},
 	"files": [
+		"SlimCryptDB.d.ts",
 		"dist/SlimCryptDB.min.js"
 	],
+	"types": "SlimCryptDB.d.ts",
 	"devDependencies": {
 		"@types/node": "^20.0.0",
 		"esbuild": "^0.25.5",
