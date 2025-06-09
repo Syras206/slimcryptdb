@@ -5,6 +5,48 @@ All notable changes to SlimCryptDB will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [2.2.1] - 2025-06-09
+
+### Added
+- minification to the package.json, which produces a minified script
+
+### Changed
+- set the main script to use the minified script
+- trimmed the files even more so that the download only includes the minified script and the ts definitions
+
+## [2.2.0] - 2025-06-09
+
+### Fixed
+- **Critical**: Fixed WAL encryption recovery failures that prevented encrypted WAL files from being properly recovered during database startup
+- Fixed shared Buffer reference issues that could cause encryption key corruption across multiple database instances
+- Fixed broken PKCS#7 padding implementation for large WAL entries
+
+### Security
+- Enhanced WAL padding system with length-prefixed format using cryptographically secure random bytes
+- Added strict validation for encryption component lengths (IV, authentication tags)
+- Improved key derivation process with validation to detect compromised encryption keys
+- Enhanced authentication failure detection and error reporting
+
+### Added
+- `getWALRecoverySummary()` method for diagnosing WAL recovery issues
+- Comprehensive WAL recovery failure tracking and reporting
+- Buffer-based WAL padding methods (`_applyWALPaddingBuffer`, `_removeWALPaddingBuffer`)
+- Enhanced error handling throughout encryption/decryption pipeline
+
+### Changed
+- WAL padding format updated from PKCS#7 to length-prefixed system (maintains backward compatibility)
+- Encryption key handling now uses Buffer copies to prevent shared reference issues
+- WAL recovery process now continues despite individual entry failures and reports diagnostics
+
+### Removed
+- Removed string-based WAL padding methods (`_applyWALPadding`, `_removeWALPadding`)
+
+### Performance
+- Improved WAL recovery resilience with better error handling and failure isolation
+
+---
+
 ## [2.1.0] - 08-June-2025
 
 ### 👾 Security Fix for unencrypted wal logs
@@ -55,7 +97,6 @@ This is the first major upgrade of SlimCryptDB (formally SlimDB), a world-class 
 - **Event-Driven Architecture**: Real-time notifications for data changes
 - **TypeScript Support**: Full type definitions included
 - **Comprehensive Testing**: 99%+ test coverage with security test suite
-- **Performance Benchmarks**: Built-in performance monitoring tools
 - **Professional Documentation**: Complete API reference and guides
 
 ### 🛡️ Security Fixes
