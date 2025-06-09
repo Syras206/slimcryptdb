@@ -43,7 +43,7 @@ npm install slimcryptdb
 ### Basic Usage
 
 ```javascript
-const { SlimCryptDB, generateEncryptionKey } = require(''slimcryptdb'')
+const { SlimCryptDB, generateEncryptionKey } = require('slimcryptdb')
 
 // Generate encryption key (do this once and store securely)
 const encryptionKey = generateEncryptionKey()
