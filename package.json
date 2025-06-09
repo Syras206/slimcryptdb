@@ -1,89 +1,93 @@
 {
 	"name": "slimcryptdb",
-	"version": "2.2.0",
+	"version": "2.2.1",
 	"description": "A minimalist, ultra-secure embedded database for Node.js applications",
-	"main": "SlimCryptDB.js",
+	"main": "dist/SlimCryptDB.min.js",
 	"scripts": {
-	  "test": "jest --verbose --coverage --detectOpenHandles",
-	  "test:watch": "jest --watch",
-	  "test:security": "npm audit && node security-test.js",
-	  "build": "npm run test && npm run test:security && npm run docs && npm run lint && npm run format",
-	  "docs": "jsdoc -c jsdoc.json",
-	  "lint": "eslint *.js",
-	  "format": "prettier --write *.js"
+		"test": "jest --verbose --coverage --detectOpenHandles",
+		"test:watch": "jest --watch",
+		"test:security": "npm audit && node security-test.js",
+		"build": "npm run test && npm run test:security && npm run docs && npm run format && npm run lint && npx esbuild SlimCryptDB.js --bundle --minify --platform=node --outfile=dist/SlimCryptDB.min.js",
+		"docs": "jsdoc -c jsdoc.json",
+		"lint": "eslint *.js",
+		"format": "prettier --write *.js"
 	},
 	"keywords": [
-	  "database",
-	  "encryption",
-	  "embedded",
-	  "lightweight",
-	  "security",
-	  "nosql",
-	  "json",
-	  "edge-computing",
-	  "iot",
-	  "serverless",
-	  "aes-256-gcm",
-	  "wal",
-	  "acid",
-	  "transactions"
+		"database",
+		"encryption",
+		"embedded",
+		"lightweight",
+		"security",
+		"nosql",
+		"json",
+		"edge-computing",
+		"iot",
+		"serverless",
+		"aes-256-gcm",
+		"wal",
+		"acid",
+		"transactions"
 	],
 	"author": {
-	  "name": "Shane Coates",
-	  "url": "https://github.com/Syras206"
+		"name": "Shane Coates",
+		"url": "https://github.com/Syras206"
 	},
 	"license": "MIT",
 	"repository": {
-	  "type": "git",
-	  "url": "https://github.com/Syras206/slimcryptdb.git"
+		"type": "git",
+		"url": "https://github.com/Syras206/slimcryptdb.git"
 	},
 	"bugs": {
-	  "url": "https://github.com/Syras206/slimcryptdb/issues"
+		"url": "https://github.com/Syras206/slimcryptdb/issues"
 	},
 	"homepage": "https://github.com/Syras206/slimcryptdb#readme",
 	"engines": {
-	  "node": ">=14.0.0"
+		"node": ">=14.0.0"
 	},
 	"files": [
-	  "SlimCryptDB.js",
-	  "SlimCryptDB.d.ts",
-	  "README.md",
-	  "LICENSE",
-	  "CHANGELOG.md"
+		"SlimCryptDB.d.ts",
+		"dist/SlimCryptDB.min.js"
 	],
+	"types": "SlimCryptDB.d.ts",
 	"devDependencies": {
-	  "jest": "^29.7.0",
-	  "eslint": "^8.57.0",
-	  "prettier": "^3.0.0",
-	  "jsdoc": "^4.0.2",
-	  "@types/node": "^20.0.0"
+		"@types/node": "^20.0.0",
+		"esbuild": "^0.25.5",
+		"eslint": "^8.57.0",
+		"jest": "^29.7.0",
+		"jsdoc": "^4.0.2",
+		"prettier": "^3.0.0"
 	},
 	"jest": {
-	  "testEnvironment": "node",
-	  "collectCoverageFrom": [
-		"SlimCryptDB.js"
-	  ],
-	  "coverageReporters": [
-		"text",
-		"lcov",
-		"html"
-	  ],
-	  "testTimeout": 30000
+		"testEnvironment": "node",
+		"collectCoverageFrom": [
+			"SlimCryptDB.js"
+		],
+		"coverageReporters": [
+			"text",
+			"lcov",
+			"html"
+		],
+		"testTimeout": 30000
 	},
 	"eslintConfig": {
-	  "env": {
-		"node": true,
-		"es2021": true,
-		"jest": true
-	  },
-	  "extends": "eslint:recommended",
-	  "parserOptions": {
-		"ecmaVersion": 2021,
-		"sourceType": "module"
-	  },
-	  "rules": {
-		"no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
-		"no-console": "off"
-	  }
+		"env": {
+			"node": true,
+			"es2021": true,
+			"jest": true
+		},
+		"extends": "eslint:recommended",
+		"parserOptions": {
+			"ecmaVersion": 2021,
+			"sourceType": "module"
+		},
+		"rules": {
+			"no-unused-vars": [
+				"error",
+				{
+					"argsIgnorePattern": "^_"
+				}
+			],
+			"no-console": "off"
+		}
 	}
-  }
+}
