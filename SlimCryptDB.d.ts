@@ -1,4 +1,4 @@
-// Type definitions for SlimCryptDB v2.1.0 - Enhanced with WAL Encryption
+// Type definitions for SlimCryptDB v2.2.0 - Enhanced with WAL Encryption
 // Project: SlimCryptDB
 // Definitions by: SlimCryptDB Contributors
 
@@ -77,7 +77,8 @@ declare namespace SlimCryptDB {
         uptime: number;
         locks: number;
         lockQueue: number;
-        walEncrypted?: boolean; // New: Indicates if WAL encryption is enabled
+        walEncrypted: boolean; // Now always present, indicates WAL encryption status
+        walRecoveryFailures?: number; // New: Number of failures in last recovery
     }
 
     interface WALEntry {
@@ -97,6 +98,18 @@ declare namespace SlimCryptDB {
         type: 'btree' | 'hash';
         unique: boolean;
         data: Map<string, any[]>;
+    }
+
+    /**
+     * WAL Recovery Summary - New in v2.2.0
+     */
+    interface WALRecoverySummary {
+        failures: Array<{
+            file: string;
+            entry: string | null;
+            error: string;
+        }>;
+        successCount: number | null;
     }
 
     type TransactionId = string;
@@ -191,11 +204,11 @@ declare class SlimCryptDB extends EventEmitter {
      */
     dropIndex(indexName: string): Promise<void>;
 
-	/**
-	 * Ready function
-	 * @returns Promise that resolves when the database is ready
-	 */
-	ready(): Promise<void>;
+    /**
+     * Ready function - ensures database is fully initialized
+     * @returns Promise that resolves when the database is ready
+     */
+    ready(): Promise<boolean>;
 
     /**
      * Start a new transaction
@@ -223,6 +236,12 @@ declare class SlimCryptDB extends EventEmitter {
     getStats(): Promise<SlimCryptDB.DatabaseStats>;
 
     /**
+     * Get summary of last WAL recovery operation - New in v2.2.0
+     * @returns Object containing recovery failures and success count
+     */
+    getWALRecoverySummary(): SlimCryptDB.WALRecoverySummary;
+
+    /**
      * Gracefully close the database
      */
     close(): Promise<void>;
@@ -241,13 +260,14 @@ declare class SlimCryptDB extends EventEmitter {
 
     removeListener(event: SlimCryptDB.EventType, listener: (...args: any[]) => void): this;
 
-    // Enhanced private methods (for documentation purposes)
-    private _deriveWALKey(): Buffer | null;
+    // Enhanced private methods (for documentation purposes) - Updated in v2.2.0
+    private _deriveWALKey(): Buffer;
     private _encryptWALData(data: any): string;
     private _decryptWALData(encryptedData: string): any;
-    private _applyWALPadding(plaintext: string): string;
-    private _removeWALPadding(paddedText: string): string;
+    private _applyWALPaddingBuffer(plaintextBuffer: Buffer): Buffer; // New in v2.2.0
+    private _removeWALPaddingBuffer(paddedBuffer: Buffer): Buffer; // New in v2.2.0
     private _initializeWALEncryption(): Promise<void>;
+    private _recoverFromWAL(): Promise<void>; // Enhanced in v2.2.0
 }
 
 /**
@@ -259,6 +279,7 @@ declare function generateEncryptionKey(): Buffer;
 /**
  * Create a secure database instance with recommended defaults
  * @param databaseDir Directory path for database storage
+ * @param encryptionKey 32-byte encryption key (optional, generates if not provided)
  * @param options Configuration options
  * @returns SlimCryptDB instance with secure defaults
  */

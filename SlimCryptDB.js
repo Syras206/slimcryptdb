@@ -17,7 +17,10 @@ const gunzip = util.promisify(zlib.gunzip);
 class SlimCryptDB {
   constructor(databaseDir, encryptionKey = null, options = {}) {
     this.databaseDir = databaseDir;
-    this.encryptionKey = encryptionKey || this._generateSecureKey();
+    // Create a copy of the encryption key to prevent shared Buffer issues
+    this.encryptionKey = encryptionKey
+      ? Buffer.from(encryptionKey)
+      : this._generateSecureKey();
     this.options = {
       encrypt: true,
       compression: true,
@@ -95,7 +98,7 @@ class SlimCryptDB {
   }
 
   /**
-   * Initialize WAL encryption salt and key (ALWAYS use persistent salt)
+   * Initialize WAL encryption salt and key with proper error handling
    */
   async _initializeWALEncryption() {
     const saltPath = path.join(this.databaseDir, "wal", ".salt");
@@ -119,13 +122,7 @@ class SlimCryptDB {
 
     // Derive WAL key from main encryption key and persistent salt
     if (this.options.encrypt && this.encryptionKey && this.options.walEnabled) {
-      this.walKey = crypto.pbkdf2Sync(
-        this.encryptionKey,
-        this.walSalt,
-        100000,
-        32,
-        "sha256",
-      );
+      this.walKey = this._deriveWALKey(); // Always derive fresh key
       this.walEncrypted = true;
     } else {
       this.walEncrypted = false;
@@ -145,15 +142,20 @@ class SlimCryptDB {
   }
 
   /**
-   * Derive WAL-specific encryption key from main encryption key
+   * Derive WAL-specific encryption key with enhanced validation
    */
   _deriveWALKey() {
     if (!this.walSalt) {
       throw new Error("WAL salt not initialized");
     }
-
     if (!this.encryptionKey) {
       throw new Error("Encryption key not provided");
+    }
+
+    // Validate encryption key hasn't been wiped
+    const keySum = this.encryptionKey.reduce((sum, byte) => sum + byte, 0);
+    if (keySum === 0) {
+      throw new Error("Encryption key has been wiped - cannot derive WAL key");
     }
 
     try {
@@ -171,7 +173,7 @@ class SlimCryptDB {
   }
 
   /**
-   * Encrypt data using AES-256-GCM with authenticated encryption
+   * Encrypt data using AES-256-GCM with authenticated encryption and strict validation
    */
   _encryptData(data) {
     if (!this.options.encrypt) {
@@ -192,6 +194,11 @@ class SlimCryptDB {
 
       const authTag = cipher.getAuthTag();
 
+      // Validate auth tag length for consistency
+      if (authTag.length !== 16) {
+        throw new Error(`Invalid authentication tag length: ${authTag.length}`);
+      }
+
       // Format: iv:authTag:ciphertext (all hex encoded)
       return (
         iv.toString("hex") +
@@ -206,7 +213,7 @@ class SlimCryptDB {
   }
 
   /**
-   * Decrypt data using AES-256-GCM with authentication verification
+   * Decrypt data using AES-256-GCM with strict authentication verification
    */
   _decryptData(encryptedData) {
     if (!this.options.encrypt) {
@@ -227,6 +234,19 @@ class SlimCryptDB {
       const authTag = Buffer.from(parts[1], "hex");
       const ciphertext = Buffer.from(parts[2], "hex");
 
+      // Strict validation of component sizes
+      if (iv.length !== 16) {
+        throw new Error(`Invalid IV length: expected 16, got ${iv.length}`);
+      }
+      if (authTag.length !== 16) {
+        throw new Error(
+          `Invalid authentication tag length: expected 16, got ${authTag.length}`,
+        );
+      }
+      if (ciphertext.length === 0) {
+        throw new Error("Empty ciphertext");
+      }
+
       const decipher = crypto.createDecipheriv(
         "aes-256-gcm",
         this.encryptionKey,
@@ -234,17 +254,45 @@ class SlimCryptDB {
       );
       decipher.setAuthTag(authTag);
 
-      let plaintext = decipher.update(ciphertext);
-      plaintext = Buffer.concat([plaintext, decipher.final()]);
+      let plaintext;
+      try {
+        plaintext = decipher.update(ciphertext);
+        plaintext = Buffer.concat([plaintext, decipher.final()]);
+      } catch (error) {
+        // Enhanced authentication failure detection
+        if (
+          error.message.includes(
+            "Unsupported state or unable to authenticate data",
+          ) ||
+          error.message.includes("authentication") ||
+          error.message.includes("auth") ||
+          error.code === "ERR_CRYPTO_AUTH_FAILED"
+        ) {
+          throw new Error(`Authentication failed: data has been tampered with`);
+        }
+        throw new Error(`Decryption failed: ${error.message}`);
+      }
 
-      return JSON.parse(plaintext.toString("utf8"));
+      // Validate plaintext is valid JSON
+      const plaintextStr = plaintext.toString("utf8");
+      try {
+        return JSON.parse(plaintextStr);
+      } catch (jsonError) {
+        throw new Error(
+          `Authentication failed: decrypted data is not valid JSON`,
+        );
+      }
     } catch (error) {
+      // Ensure authentication failures are properly categorized
+      if (error.message.includes("Authentication failed")) {
+        throw error;
+      }
       throw new Error(`Decryption failed: ${error.message}`);
     }
   }
 
   /**
-   * Encrypt WAL data using derived WAL key with padding to prevent size-based attacks
+   * Encrypt WAL data with consistent key handling
    */
   _encryptWALData(data) {
     if (!this.options.walEnabled || !this.options.encrypt) {
@@ -258,18 +306,30 @@ class SlimCryptDB {
     }
 
     try {
+      // Convert data object to JSON string
       const plaintext = JSON.stringify(data);
-      const walKey = this.walKey || this._deriveWALKey();
-      const iv = crypto.randomBytes(16); // Unique IV for each WAL encryption
 
-      // Apply padding to prevent size-based leakage attacks
-      const paddedPlaintext = this._applyWALPadding(plaintext);
+      // Use the cached WAL key (don't re-derive during encryption)
+      const walKey = this.walKey;
+      if (!walKey) {
+        throw new Error("WAL key not available during encryption");
+      }
 
+      // Create unique IV for this encryption
+      const iv = crypto.randomBytes(16);
+
+      // Convert JSON string to Buffer and apply padding
+      const plaintextBuffer = Buffer.from(plaintext, "utf8");
+      const paddedBuffer = this._applyWALPaddingBuffer(plaintextBuffer);
+
+      // Create cipher with GCM mode
       const cipher = crypto.createCipheriv("aes-256-gcm", walKey, iv);
 
-      let ciphertext = cipher.update(paddedPlaintext, "utf8");
+      // Encrypt the padded buffer
+      let ciphertext = cipher.update(paddedBuffer);
       ciphertext = Buffer.concat([ciphertext, cipher.final()]);
 
+      // Get authentication tag
       const authTag = cipher.getAuthTag();
 
       // Format: WAL:iv:authTag:ciphertext (all hex encoded with WAL prefix)
@@ -287,7 +347,7 @@ class SlimCryptDB {
   }
 
   /**
-   * Decrypt WAL data using derived WAL key
+   * Decrypt WAL data with consistent key handling
    */
   _decryptWALData(encryptedData) {
     if (!this.options.encrypt) {
@@ -313,28 +373,37 @@ class SlimCryptDB {
         throw new Error("Cannot decrypt WAL data: encryption not initialized");
       }
 
+      // Parse WAL format
       const walData = encryptedData.substring(4); // Remove 'WAL:' prefix
       const parts = walData.split(":");
       if (parts.length !== 3) {
         throw new Error("Invalid encrypted WAL data format");
       }
 
+      // Extract components
       const iv = Buffer.from(parts[0], "hex");
       const authTag = Buffer.from(parts[1], "hex");
       const ciphertext = Buffer.from(parts[2], "hex");
 
-      const walKey = this.walKey || this._deriveWALKey();
+      // Use the cached WAL key (don't re-derive during decryption)
+      const walKey = this.walKey;
+      if (!walKey) {
+        throw new Error("WAL key not available during decryption");
+      }
+
+      // Create decipher
       const decipher = crypto.createDecipheriv("aes-256-gcm", walKey, iv);
       decipher.setAuthTag(authTag);
 
-      let paddedPlaintext = decipher.update(ciphertext);
-      paddedPlaintext = Buffer.concat([paddedPlaintext, decipher.final()]);
+      // Decrypt to get padded buffer
+      let paddedBuffer = decipher.update(ciphertext);
+      paddedBuffer = Buffer.concat([paddedBuffer, decipher.final()]);
 
       // Remove padding
-      const plaintext = this._removeWALPadding(
-        paddedPlaintext.toString("utf8"),
-      );
+      const plaintextBuffer = this._removeWALPaddingBuffer(paddedBuffer);
 
+      // Convert buffer back to string and parse JSON
+      const plaintext = plaintextBuffer.toString("utf8");
       return JSON.parse(plaintext);
     } catch (error) {
       throw new Error(`WAL decryption failed: ${error.message}`);
@@ -342,52 +411,53 @@ class SlimCryptDB {
   }
 
   /**
-   * Apply PKCS#7-style padding with fixed size to prevent size-based attacks
+   * Apply length-prefixed padding with fixed size to prevent size-based attacks
+   * This replaces the broken PKCS#7 implementation for large block sizes
    */
-  _applyWALPadding(plaintext) {
+  _applyWALPaddingBuffer(plaintextBuffer) {
     const blockSize = this.options.walPaddingSize;
-    const textLength = Buffer.byteLength(plaintext, "utf8");
+    const textLength = plaintextBuffer.length;
 
-    if (textLength >= blockSize) {
+    let paddedSize;
+    if (textLength >= blockSize - 4) {
+      // Reserve 4 bytes for length encoding
       // For large entries, use multiple blocks
-      const blocksNeeded = Math.ceil(textLength / blockSize);
-      const paddedSize = blocksNeeded * blockSize;
-      const paddingLength = paddedSize - textLength;
-
-      const padding = Buffer.alloc(paddingLength, paddingLength);
-      return plaintext + padding.toString("utf8");
+      const blocksNeeded = Math.ceil((textLength + 4) / blockSize);
+      paddedSize = blocksNeeded * blockSize;
     } else {
       // For small entries, pad to fixed block size
-      const paddingLength = blockSize - textLength;
-      const padding = Buffer.alloc(paddingLength, paddingLength);
-      return plaintext + padding.toString("utf8");
+      paddedSize = blockSize;
     }
+
+    const paddingLength = paddedSize - textLength - 4; // Reserve 4 bytes for length
+
+    // Create padding filled with random bytes for security
+    const padding = crypto.randomBytes(paddingLength);
+
+    // Create length buffer (4 bytes, big-endian)
+    const lengthBuffer = Buffer.alloc(4);
+    lengthBuffer.writeUInt32BE(textLength, 0);
+
+    return Buffer.concat([plaintextBuffer, padding, lengthBuffer]);
   }
 
   /**
-   * Remove PKCS#7-style padding
+   * Remove length-prefixed padding
    */
-  _removeWALPadding(paddedText) {
-    if (paddedText.length === 0) return paddedText;
-
-    const lastByte = paddedText.charCodeAt(paddedText.length - 1);
-
-    // Validate padding
-    if (lastByte > 0 && lastByte <= this.options.walPaddingSize) {
-      const paddingStart = paddedText.length - lastByte;
-
-      // Verify all padding bytes are the same
-      for (let i = paddingStart; i < paddedText.length; i++) {
-        if (paddedText.charCodeAt(i) !== lastByte) {
-          // Invalid padding, return as-is
-          return paddedText;
-        }
-      }
-
-      return paddedText.substring(0, paddingStart);
+  _removeWALPaddingBuffer(paddedBuffer) {
+    if (paddedBuffer.length < 4) {
+      throw new Error("Invalid padded buffer: too short");
     }
 
-    return paddedText;
+    // Read original length from last 4 bytes (big-endian)
+    const originalLength = paddedBuffer.readUInt32BE(paddedBuffer.length - 4);
+
+    // Validate length
+    if (originalLength < 0 || originalLength > paddedBuffer.length - 4) {
+      throw new Error(`Invalid original length: ${originalLength}`);
+    }
+
+    return paddedBuffer.slice(0, originalLength);
   }
 
   /**
@@ -493,47 +563,90 @@ class SlimCryptDB {
    * Recover from WAL files
    */
   async _recoverFromWAL() {
-    try {
-      const walDir = path.join(this.databaseDir, "wal");
-
-      // Check if WAL directory exists
-      try {
-        await fs.access(walDir);
-      } catch (error) {
-        // WAL directory doesn't exist, nothing to recover
-        return;
+    // Ensure encryption is initialized before recovery
+    if (this.options.encrypt && this.options.walEnabled) {
+      if (!this.walEncrypted || !this.walKey) {
+        throw new Error("WAL encryption not properly initialized for recovery");
       }
-
-      const walFiles = await fs.readdir(walDir);
-      const logFiles = walFiles.filter((file) => file.endsWith(".log")).sort();
-
-      for (const walFile of logFiles) {
-        if (walFile === ".salt") continue;
-
-        const walPath = path.join(walDir, walFile);
-
-        try {
-          const walContent = await fs.readFile(walPath, "utf8");
-          const walEntries = walContent.trim().split("\n").filter(Boolean);
-
-          for (const entryLine of walEntries) {
-            try {
-              // Decrypt WAL entry
-              const walEntry = this._decryptWALData(entryLine);
-              await this._applyWALEntry(walEntry);
-            } catch {
-              // If decryption fails, skip entry
-            }
-          }
-        } catch (error) {
-          console.warn(
-            `Failed to process WAL file ${walFile}: ${error.message}`,
-          );
-        }
-      }
-    } catch (error) {
-      console.warn(`WAL recovery failed: ${error.message}`);
     }
+
+    const walDir = path.join(this.databaseDir, "wal");
+    let recoveryFailures = [];
+    let recoveredEntries = 0;
+
+    // Check if WAL directory exists
+    try {
+      await fs.access(walDir);
+    } catch (error) {
+      // WAL directory doesn't exist, nothing to recover
+      return;
+    }
+
+    const walFiles = await fs.readdir(walDir);
+    const logFiles = walFiles.filter((file) => file.endsWith(".log")).sort();
+
+    for (const walFile of logFiles) {
+      if (walFile === ".salt") continue;
+
+      const walPath = path.join(walDir, walFile);
+
+      try {
+        const walContent = await fs.readFile(walPath, "utf8");
+        const walEntries = walContent.trim().split("\n").filter(Boolean);
+
+        for (const entryLine of walEntries) {
+          try {
+            // Decrypt WAL entry
+            const walEntry = this._decryptWALData(entryLine);
+            await this._applyWALEntry(walEntry);
+            recoveredEntries++;
+          } catch (error) {
+            // Log and track failed WAL entry
+            console.warn(
+              `[WAL RECOVERY] Failed to process entry in ${walFile}: ${error.message}`,
+            );
+            recoveryFailures.push({
+              file: walFile,
+              entry:
+                entryLine.slice(0, 80) + (entryLine.length > 80 ? "..." : ""),
+              error: error.message,
+            });
+          }
+        }
+      } catch (error) {
+        console.warn(
+          `[WAL RECOVERY] Failed to process WAL file ${walFile}: ${error.message}`,
+        );
+        recoveryFailures.push({
+          file: walFile,
+          entry: null,
+          error: error.message,
+        });
+      }
+    }
+
+    // Summary report for audit and testing
+    if (recoveryFailures.length > 0) {
+      console.warn(
+        `[WAL RECOVERY] Completed with ${recoveryFailures.length} failures and ${recoveredEntries} successful entries.`,
+      );
+      this.lastWALRecoveryFailures = recoveryFailures;
+    } else {
+      console.info(
+        `[WAL RECOVERY] All WAL entries recovered successfully (${recoveredEntries} entries).`,
+      );
+      this.lastWALRecoveryFailures = [];
+    }
+  }
+
+  getWALRecoverySummary() {
+    return {
+      failures: this.lastWALRecoveryFailures || [],
+      successCount:
+        typeof this.lastWALRecoveryFailures === "undefined"
+          ? null
+          : this.lastWALRecoveryFailures.length || 0,
+    };
   }
 
   /**
@@ -1524,7 +1637,7 @@ class SlimCryptDB {
   }
 
   /**
-   * Graceful shutdown
+   * Enhanced graceful shutdown with proper key management
    */
   async close() {
     if (this.isClosed) return;
@@ -1548,16 +1661,20 @@ class SlimCryptDB {
     this.locks.clear();
     this.transactions.clear();
 
-    // Securely wipe encryption key
+    // Securely wipe encryption keys (now safe since each instance has its own copy)
     if (this.encryptionKey && Buffer.isBuffer(this.encryptionKey)) {
       this.encryptionKey.fill(0);
     }
-    if (this.walEncryptionSalt && Buffer.isBuffer(this.walEncryptionSalt)) {
-      this.walEncryptionSalt.fill(0);
+    if (this.walKey && Buffer.isBuffer(this.walKey)) {
+      this.walKey.fill(0);
+    }
+    if (this.walSalt && Buffer.isBuffer(this.walSalt)) {
+      this.walSalt.fill(0);
     }
 
     this.encryptionKey = null;
-    this.walEncryptionSalt = null;
+    this.walKey = null;
+    this.walSalt = null;
 
     // Remove all event listeners
     this.eventEmitter.removeAllListeners();
