@@ -1,6 +1,6 @@
-const { SlimCryptDB, generateEncryptionKey } = require("./SlimCryptDB.js");
-const fs = require("fs").promises;
-const path = require("path");
+const { SlimCryptDB, generateEncryptionKey } = require('./SlimCryptDB.js');
+const fs = require('fs').promises;
+const path = require('path');
 
 /**
  * Comprehensive security test suite for SlimCryptDB
@@ -22,7 +22,7 @@ class SlimCryptDBSecurityTester {
   }
 
   async setup() {
-    console.log("🔒 SlimCryptDB Security Test Suite Starting...\n");
+    console.log('🔒 SlimCryptDB Security Test Suite Starting...\n');
     // Create test directory
     await fs.mkdir(this.testDir, { recursive: true });
   }
@@ -49,7 +49,7 @@ class SlimCryptDBSecurityTester {
     }
   }
 
-  logResult(testName, status, details, severity = "info") {
+  logResult(testName, status, details, severity = 'info') {
     const result = {
       test: testName,
       status,
@@ -61,17 +61,17 @@ class SlimCryptDBSecurityTester {
     this.testResults.push(result);
 
     const statusEmoji =
-      status === "PASS" ? "✅" : status === "FAIL" ? "❌" : "⚠️";
+      status === 'PASS' ? '✅' : status === 'FAIL' ? '❌' : '⚠️';
     const severityPrefix =
-      severity === "critical" ? "🚨" : severity === "high" ? "⚠️" : "";
+      severity === 'critical' ? '🚨' : severity === 'high' ? '⚠️' : '';
 
     console.log(`${statusEmoji} ${severityPrefix} ${testName}: ${status}`);
     if (details) {
       console.log(`   ${details}\n`);
     }
 
-    if (status === "FAIL") {
-      if (severity === "critical" || severity === "high") {
+    if (status === 'FAIL') {
+      if (severity === 'critical' || severity === 'high') {
         this.vulnerabilityCount++;
       } else {
         this.warningCount++;
@@ -80,25 +80,25 @@ class SlimCryptDBSecurityTester {
   }
 
   async testEncryptionStrength() {
-    console.log("🔐 Testing Encryption Strength...\n");
+    console.log('🔐 Testing Encryption Strength...\n');
 
     try {
       // Test 1: Key generation entropy
       const keys = Array.from({ length: 100 }, () => generateEncryptionKey());
-      const uniqueKeys = new Set(keys.map((k) => k.toString("hex")));
+      const uniqueKeys = new Set(keys.map((k) => k.toString('hex')));
 
       if (uniqueKeys.size === keys.length) {
         this.logResult(
-          "Key Generation Entropy",
-          "PASS",
-          "All generated keys are unique (good entropy)",
+          'Key Generation Entropy',
+          'PASS',
+          'All generated keys are unique (good entropy)'
         );
       } else {
         this.logResult(
-          "Key Generation Entropy",
-          "FAIL",
-          "Duplicate keys detected - poor entropy",
-          "critical",
+          'Key Generation Entropy',
+          'FAIL',
+          'Duplicate keys detected - poor entropy',
+          'critical'
         );
       }
 
@@ -106,31 +106,31 @@ class SlimCryptDBSecurityTester {
       const testKey = generateEncryptionKey();
       if (testKey.length === 32) {
         this.logResult(
-          "Key Length",
-          "PASS",
-          "256-bit keys generated correctly",
+          'Key Length',
+          'PASS',
+          '256-bit keys generated correctly'
         );
       } else {
         this.logResult(
-          "Key Length",
-          "FAIL",
+          'Key Length',
+          'FAIL',
           `Expected 32 bytes, got ${testKey.length}`,
-          "critical",
+          'critical'
         );
       }
     } catch (error) {
       this.logResult(
-        "Encryption Strength Tests",
-        "FAIL",
+        'Encryption Strength Tests',
+        'FAIL',
         `Unexpected error: ${error.message}`,
-        "high",
+        'high'
       );
     }
   }
 
   async suppressExpectedWarnings(
     testFunction,
-    filterPattern = "[WAL RECOVERY]",
+    filterPattern = '[WAL RECOVERY]'
   ) {
     const originalWarn = console.warn;
     console.warn = (message) => {
@@ -147,7 +147,7 @@ class SlimCryptDBSecurityTester {
   }
 
   async testAccessControl() {
-    console.log("🔑 Testing Access Control...\n");
+    console.log('🔑 Testing Access Control...\n');
 
     const correctKey = generateEncryptionKey();
     const wrongKey = generateEncryptionKey();
@@ -166,10 +166,10 @@ class SlimCryptDBSecurityTester {
       await db1.ready();
       this.dbInstances.push(db1);
 
-      await db1.createTable("secure_data");
-      await db1.addData("secure_data", {
-        secret: "top_secret_information",
-        level: "classified",
+      await db1.createTable('secure_data');
+      await db1.addData('secure_data', {
+        secret: 'top_secret_information',
+        level: 'classified',
       });
 
       // Ensure write operations complete
@@ -178,7 +178,7 @@ class SlimCryptDBSecurityTester {
       // Close the database to ensure all data is flushed to disk
       await db1.close();
       this.dbInstances = this.dbInstances.filter(
-        (instance) => instance !== db1,
+        (instance) => instance !== db1
       );
 
       // Wait for file handles to be released
@@ -197,65 +197,65 @@ class SlimCryptDBSecurityTester {
         // Verify failures are due to decryption with wrong key (expected)
         const hasUnexpectedFailures = db2.lastWALRecoveryFailures.some(
           (failure) =>
-            !failure.error.includes("WAL decryption failed") &&
+            !failure.error.includes('WAL decryption failed') &&
             !failure.error.includes(
-              "Unsupported state or unable to authenticate data",
+              'Unsupported state or unable to authenticate data'
             ) &&
-            !failure.error.includes("Authentication"),
+            !failure.error.includes('Authentication')
         );
 
         if (hasUnexpectedFailures) {
           throw new Error(
-            "Unexpected WAL recovery failures: " +
-              JSON.stringify(db2.lastWALRecoveryFailures, null, 2),
+            'Unexpected WAL recovery failures: ' +
+              JSON.stringify(db2.lastWALRecoveryFailures, null, 2)
           );
         } else {
           console.log(
-            `✓ WAL properly rejected ${db2.lastWALRecoveryFailures.length} entries encrypted with different key`,
+            `✓ WAL properly rejected ${db2.lastWALRecoveryFailures.length} entries encrypted with different key`
           );
         }
       }
 
       try {
-        await db2.readData("secure_data", {});
+        await db2.readData('secure_data', {});
         this.logResult(
-          "Key-based Access Control",
-          "FAIL",
-          "Data accessible with wrong key - encryption bypass possible",
-          "critical",
+          'Key-based Access Control',
+          'FAIL',
+          'Data accessible with wrong key - encryption bypass possible',
+          'critical'
         );
       } catch (error) {
         if (
-          error.message.includes("Decryption failed") ||
-          error.message.includes("Invalid") ||
-          error.message.includes("Authentication")
+          error.message.includes('Decryption failed') ||
+          error.message.includes('Invalid') ||
+          error.message.includes('Authentication')
         ) {
           this.logResult(
-            "Key-based Access Control",
-            "PASS",
-            "Wrong key properly rejected",
+            'Key-based Access Control',
+            'PASS',
+            'Wrong key properly rejected'
           );
         } else {
           this.logResult(
-            "Key-based Access Control",
-            "WARN",
+            'Key-based Access Control',
+            'WARN',
             `Unexpected error: ${error.message}`,
-            "medium",
+            'medium'
           );
         }
       }
     } catch (error) {
       this.logResult(
-        "Access Control Test",
-        "WARN",
+        'Access Control Test',
+        'WARN',
         `Test setup failed: ${error.message}`,
-        "medium",
+        'medium'
       );
     }
   }
 
   async testAuthenticationTagVerification() {
-    console.log("🔐 Testing Data Integrity...\n");
+    console.log('🔐 Testing Data Integrity...\n');
 
     const encryptionKey = generateEncryptionKey();
     const testSubDir = path.join(this.testDir, `auth-test-${Date.now()}`);
@@ -266,10 +266,10 @@ class SlimCryptDBSecurityTester {
       await db.ready();
       this.dbInstances.push(db);
 
-      await db.createTable("test_data");
-      const testRecord = await db.addData("test_data", {
-        secret: "sensitive_information_that_should_be_protected",
-        level: "confidential",
+      await db.createTable('test_data');
+      const testRecord = await db.addData('test_data', {
+        secret: 'sensitive_information_that_should_be_protected',
+        level: 'confidential',
         timestamp: Date.now(),
       });
 
@@ -280,38 +280,38 @@ class SlimCryptDBSecurityTester {
       await this.sleep(100);
 
       // Test 1: Corrupt authentication tag in database file
-      console.log("Testing corrupted authentication tag...");
-      await this._corruptDatabaseFile(testSubDir, "authTag");
+      console.log('Testing corrupted authentication tag...');
+      await this._corruptDatabaseFile(testSubDir, 'authTag');
 
       const db2 = new SlimCryptDB(testSubDir, encryptionKey);
       await db2.ready();
       this.dbInstances.push(db2);
 
       try {
-        await db2.readData("test_data", {});
+        await db2.readData('test_data', {});
         await db2.close();
         this.dbInstances = this.dbInstances.filter(
-          (instance) => instance !== db2,
+          (instance) => instance !== db2
         );
         throw new Error(
-          "Corrupted authentication tag was accepted - authentication failure",
+          'Corrupted authentication tag was accepted - authentication failure'
         );
       } catch (error) {
         await db2.close();
         this.dbInstances = this.dbInstances.filter(
-          (instance) => instance !== db2,
+          (instance) => instance !== db2
         );
 
         if (
-          error.message.includes("Authentication failed") ||
-          error.message.includes("Decryption failed") ||
-          error.message.includes("authentication") ||
-          error.message.includes("Invalid encrypted data format")
+          error.message.includes('Authentication failed') ||
+          error.message.includes('Decryption failed') ||
+          error.message.includes('authentication') ||
+          error.message.includes('Invalid encrypted data format')
         ) {
-          console.log("✓ Corrupted authentication tag properly rejected");
+          console.log('✓ Corrupted authentication tag properly rejected');
         } else {
           throw new Error(
-            `Unexpected error with corrupted auth tag: ${error.message}`,
+            `Unexpected error with corrupted auth tag: ${error.message}`
           );
         }
       }
@@ -320,63 +320,63 @@ class SlimCryptDBSecurityTester {
       await this._restoreDatabaseFile(testSubDir);
 
       // Test 2: Corrupt ciphertext in database file
-      console.log("Testing corrupted ciphertext...");
-      await this._corruptDatabaseFile(testSubDir, "ciphertext");
+      console.log('Testing corrupted ciphertext...');
+      await this._corruptDatabaseFile(testSubDir, 'ciphertext');
 
       const db3 = new SlimCryptDB(testSubDir, encryptionKey);
       await db3.ready();
       this.dbInstances.push(db3);
 
       try {
-        await db3.readData("test_data", {});
+        await db3.readData('test_data', {});
         await db3.close();
         this.dbInstances = this.dbInstances.filter(
-          (instance) => instance !== db3,
+          (instance) => instance !== db3
         );
         throw new Error(
-          "Corrupted ciphertext was accepted - authentication failure",
+          'Corrupted ciphertext was accepted - authentication failure'
         );
       } catch (error) {
         await db3.close();
         this.dbInstances = this.dbInstances.filter(
-          (instance) => instance !== db3,
+          (instance) => instance !== db3
         );
 
         if (
-          error.message.includes("Authentication failed") ||
-          error.message.includes("Decryption failed") ||
-          error.message.includes("authentication") ||
-          error.message.includes("not valid JSON") ||
-          error.message.includes("Invalid encrypted data format")
+          error.message.includes('Authentication failed') ||
+          error.message.includes('Decryption failed') ||
+          error.message.includes('authentication') ||
+          error.message.includes('not valid JSON') ||
+          error.message.includes('Invalid encrypted data format')
         ) {
-          console.log("✓ Corrupted ciphertext properly rejected");
+          console.log('✓ Corrupted ciphertext properly rejected');
         } else {
           throw new Error(
-            `Unexpected error with corrupted ciphertext: ${error.message}`,
+            `Unexpected error with corrupted ciphertext: ${error.message}`
           );
         }
       }
 
       this.logResult(
-        "Authentication Tag Verification",
-        "PASS",
-        "All corruption attempts properly rejected",
+        'Authentication Tag Verification',
+        'PASS',
+        'All corruption attempts properly rejected'
       );
     } catch (error) {
       this.logResult(
-        "Authentication Tag Verification",
-        "FAIL",
+        'Authentication Tag Verification',
+        'FAIL',
         `Authentication verification failed: ${error.message}`,
-        "critical",
+        'critical'
       );
     }
   }
 
   async _corruptDatabaseFile(testSubDir, corruptionType) {
-    const filePath = path.join(testSubDir, "test_data.db");
+    const filePath = path.join(testSubDir, 'test_data.db');
 
     try {
-      let fileContent = await fs.readFile(filePath, "utf8");
+      let fileContent = await fs.readFile(filePath, 'utf8');
 
       // Store original for restoration
       this._originalFileContent = fileContent;
@@ -385,23 +385,23 @@ class SlimCryptDBSecurityTester {
       const encryptedPattern = /[a-f0-9]{32}:[a-f0-9]{32}:[a-f0-9]+/gi;
 
       fileContent = fileContent.replace(encryptedPattern, (match) => {
-        const parts = match.split(":");
+        const parts = match.split(':');
         if (parts.length === 3) {
-          if (corruptionType === "authTag") {
+          if (corruptionType === 'authTag') {
             // Corrupt authentication tag (middle part)
-            const corruptedTag = parts[1].substring(0, 28) + "ffff";
+            const corruptedTag = parts[1].substring(0, 28) + 'ffff';
             return `${parts[0]}:${corruptedTag}:${parts[2]}`;
-          } else if (corruptionType === "ciphertext") {
+          } else if (corruptionType === 'ciphertext') {
             // Corrupt ciphertext (last part)
             const corruptedCiphertext =
-              parts[2].substring(0, parts[2].length - 8) + "ffffffff";
+              parts[2].substring(0, parts[2].length - 8) + 'ffffffff';
             return `${parts[0]}:${parts[1]}:${corruptedCiphertext}`;
           }
         }
         return match;
       });
 
-      await fs.writeFile(filePath, fileContent, "utf8");
+      await fs.writeFile(filePath, fileContent, 'utf8');
       console.log(`✓ Applied ${corruptionType} corruption to database file`);
     } catch (error) {
       throw new Error(`Failed to corrupt database file: ${error.message}`);
@@ -410,9 +410,9 @@ class SlimCryptDBSecurityTester {
 
   async _restoreDatabaseFile(testSubDir) {
     if (this._originalFileContent) {
-      const filePath = path.join(testSubDir, "test_data.db");
-      await fs.writeFile(filePath, this._originalFileContent, "utf8");
-      console.log("✓ Restored original database file");
+      const filePath = path.join(testSubDir, 'test_data.db');
+      await fs.writeFile(filePath, this._originalFileContent, 'utf8');
+      console.log('✓ Restored original database file');
     }
   }
 
@@ -420,28 +420,28 @@ class SlimCryptDBSecurityTester {
    * Test key management security - key derivation, rotation, and secure handling
    */
   async testKeyManagementSecurity() {
-    console.log("🔑 Testing Key Management Security...\n");
+    console.log('🔑 Testing Key Management Security...\n');
 
     const baseKey = generateEncryptionKey();
     const testSubDir = path.join(this.testDir, `key-mgmt-${Date.now()}`);
 
     try {
       // Test 1: Key derivation consistency
-      console.log("Testing key derivation consistency...");
+      console.log('Testing key derivation consistency...');
       const db1 = new SlimCryptDB(testSubDir, baseKey);
       await db1.ready();
       this.dbInstances.push(db1);
 
-      await db1.createTable("key_test");
-      const testData = { secret: "key_derivation_test", timestamp: Date.now() };
-      await db1.addData("key_test", testData);
+      await db1.createTable('key_test');
+      const testData = { secret: 'key_derivation_test', timestamp: Date.now() };
+      await db1.addData('key_test', testData);
 
       // Get the derived WAL key for comparison
       const originalWalKey = db1.walKey ? Buffer.from(db1.walKey) : null;
 
       await db1.close();
       this.dbInstances = this.dbInstances.filter(
-        (instance) => instance !== db1,
+        (instance) => instance !== db1
       );
 
       // Reopen with same key - should derive identical WAL key
@@ -452,88 +452,88 @@ class SlimCryptDBSecurityTester {
       const newWalKey = db2.walKey;
 
       if (!originalWalKey || !newWalKey || !originalWalKey.equals(newWalKey)) {
-        throw new Error("Key derivation is not consistent between sessions");
+        throw new Error('Key derivation is not consistent between sessions');
       }
-      console.log("✓ Key derivation is consistent across sessions");
+      console.log('✓ Key derivation is consistent across sessions');
 
       // Test 2: Key isolation between instances
-      console.log("Testing key isolation between instances...");
+      console.log('Testing key isolation between instances...');
       const db3 = new SlimCryptDB(
         path.join(this.testDir, `isolation-${Date.now()}`),
-        generateEncryptionKey(),
+        generateEncryptionKey()
       );
       await db3.ready();
       this.dbInstances.push(db3);
 
       if (db2.walKey && db3.walKey && db2.walKey.equals(db3.walKey)) {
         throw new Error(
-          "Different databases derived identical keys - key isolation failure",
+          'Different databases derived identical keys - key isolation failure'
         );
       }
-      console.log("✓ Key isolation between instances verified");
+      console.log('✓ Key isolation between instances verified');
 
       // Test 3: Memory security - verify keys are properly cleared
-      console.log("Testing key memory security...");
+      console.log('Testing key memory security...');
       const keyBuffer = Buffer.from(db2.encryptionKey);
       await db2.close();
       this.dbInstances = this.dbInstances.filter(
-        (instance) => instance !== db2,
+        (instance) => instance !== db2
       );
 
       // Check if the original key buffer was properly wiped
       const keySum = keyBuffer.reduce((sum, byte) => sum + byte, 0);
       if (keySum !== 0) {
         console.log(
-          "⚠️ Original key buffer not wiped (expected for independent copies)",
+          '⚠️ Original key buffer not wiped (expected for independent copies)'
         );
       } else {
-        console.log("✓ Key buffer properly wiped on close");
+        console.log('✓ Key buffer properly wiped on close');
       }
 
       await db3.close();
       this.dbInstances = this.dbInstances.filter(
-        (instance) => instance !== db3,
+        (instance) => instance !== db3
       );
 
       // Test 4: Salt persistence and security
-      console.log("Testing salt persistence and security...");
-      const saltPath = path.join(testSubDir, "wal", ".salt");
+      console.log('Testing salt persistence and security...');
+      const saltPath = path.join(testSubDir, 'wal', '.salt');
 
       try {
         const saltData = await fs.readFile(saltPath);
         if (saltData.length !== 32) {
           throw new Error(
-            `Invalid salt length: expected 32, got ${saltData.length}`,
+            `Invalid salt length: expected 32, got ${saltData.length}`
           );
         }
 
         // Verify salt is not all zeros
         const saltSum = saltData.reduce((sum, byte) => sum + byte, 0);
         if (saltSum === 0) {
-          throw new Error("Salt contains all zeros - potential security issue");
+          throw new Error('Salt contains all zeros - potential security issue');
         }
 
-        console.log("✓ Salt properly generated and persisted");
+        console.log('✓ Salt properly generated and persisted');
       } catch (error) {
-        if (error.code === "ENOENT") {
+        if (error.code === 'ENOENT') {
           throw new Error(
-            "Salt file not created - key derivation may be insecure",
+            'Salt file not created - key derivation may be insecure'
           );
         }
         throw error;
       }
 
       this.logResult(
-        "Key Management Security",
-        "PASS",
-        "Key derivation, isolation, and memory security verified",
+        'Key Management Security',
+        'PASS',
+        'Key derivation, isolation, and memory security verified'
       );
     } catch (error) {
       this.logResult(
-        "Key Management Security",
-        "FAIL",
+        'Key Management Security',
+        'FAIL',
         `Key management security failed: ${error.message}`,
-        "critical",
+        'critical'
       );
     }
   }
@@ -542,20 +542,20 @@ class SlimCryptDBSecurityTester {
    * Test performance security - ensure encryption doesn't create DoS vulnerabilities
    */
   async testPerformanceSecurityImpact() {
-    console.log("⚡ Testing Performance Security Impact...\n");
+    console.log('⚡ Testing Performance Security Impact...\n');
 
     const encryptionKey = generateEncryptionKey();
     const testSubDir = path.join(this.testDir, `perf-security-${Date.now()}`);
 
     try {
       // Test 1: Encryption performance impact assessment
-      console.log("Testing encryption performance impact...");
+      console.log('Testing encryption performance impact...');
 
       const db = new SlimCryptDB(testSubDir, encryptionKey);
       await db.ready();
       this.dbInstances.push(db);
 
-      await db.createTable("performance_test");
+      await db.createTable('performance_test');
 
       // Test with increasingly large payloads to detect performance DoS vectors
       const testSizes = [100, 1000, 10000, 50000]; // bytes
@@ -564,16 +564,16 @@ class SlimCryptDBSecurityTester {
       for (const size of testSizes) {
         const largeData = {
           id: `test_${size}`,
-          payload: "x".repeat(size),
+          payload: 'x'.repeat(size),
           timestamp: Date.now(),
         };
 
         const startTime = Date.now();
-        await db.addData("performance_test", largeData);
+        await db.addData('performance_test', largeData);
         const encryptTime = Date.now() - startTime;
 
         const readStartTime = Date.now();
-        await db.readData("performance_test", { id: largeData.id });
+        await db.readData('performance_test', { id: largeData.id });
         const decryptTime = Date.now() - readStartTime;
 
         performanceResults.push({
@@ -584,23 +584,23 @@ class SlimCryptDBSecurityTester {
         });
 
         console.log(
-          `✓ ${size} bytes: encrypt=${encryptTime}ms, decrypt=${decryptTime}ms`,
+          `✓ ${size} bytes: encrypt=${encryptTime}ms, decrypt=${decryptTime}ms`
         );
       }
 
       // Analyze performance scaling to detect potential DoS vulnerabilities
       const worstCaseTime = Math.max(
-        ...performanceResults.map((r) => r.totalTime),
+        ...performanceResults.map((r) => r.totalTime)
       );
       if (worstCaseTime > 5000) {
         // 5 second threshold
         throw new Error(
-          `Performance DoS vulnerability: ${worstCaseTime}ms for encryption/decryption`,
+          `Performance DoS vulnerability: ${worstCaseTime}ms for encryption/decryption`
         );
       }
 
       // Test 2: Concurrent access performance security
-      console.log("Testing concurrent access performance...");
+      console.log('Testing concurrent access performance...');
 
       const concurrentOperations = 10;
       const concurrentPromises = [];
@@ -608,7 +608,7 @@ class SlimCryptDBSecurityTester {
       const concurrentStartTime = Date.now();
 
       for (let i = 0; i < concurrentOperations; i++) {
-        const promise = db.addData("performance_test", {
+        const promise = db.addData('performance_test', {
           concurrent_id: i,
           data: `concurrent_test_${i}`,
           timestamp: Date.now(),
@@ -620,26 +620,26 @@ class SlimCryptDBSecurityTester {
       const concurrentTime = Date.now() - concurrentStartTime;
 
       console.log(
-        `✓ ${concurrentOperations} concurrent operations completed in ${concurrentTime}ms`,
+        `✓ ${concurrentOperations} concurrent operations completed in ${concurrentTime}ms`
       );
 
       if (concurrentTime > 10000) {
         // 10 second threshold for concurrent operations
         throw new Error(
-          `Concurrent access DoS vulnerability: ${concurrentTime}ms for ${concurrentOperations} operations`,
+          `Concurrent access DoS vulnerability: ${concurrentTime}ms for ${concurrentOperations} operations`
         );
       }
 
       // Test 3: Memory usage under encryption load
-      console.log("Testing memory usage security...");
+      console.log('Testing memory usage security...');
 
       const initialMemory = process.memoryUsage().heapUsed;
 
       // Perform multiple encryption operations
       for (let i = 0; i < 100; i++) {
-        await db.addData("performance_test", {
+        await db.addData('performance_test', {
           memory_test: i,
-          data: "x".repeat(1000),
+          data: 'x'.repeat(1000),
           timestamp: Date.now(),
         });
       }
@@ -649,13 +649,13 @@ class SlimCryptDBSecurityTester {
       const memoryIncreaseMB = memoryIncrease / (1024 * 1024);
 
       console.log(
-        `✓ Memory increase: ${memoryIncreaseMB.toFixed(2)}MB for 100 operations`,
+        `✓ Memory increase: ${memoryIncreaseMB.toFixed(2)}MB for 100 operations`
       );
 
       if (memoryIncreaseMB > 100) {
         // 100MB threshold
         throw new Error(
-          `Memory DoS vulnerability: ${memoryIncreaseMB.toFixed(2)}MB memory increase`,
+          `Memory DoS vulnerability: ${memoryIncreaseMB.toFixed(2)}MB memory increase`
         );
       }
 
@@ -663,22 +663,22 @@ class SlimCryptDBSecurityTester {
       this.dbInstances = this.dbInstances.filter((instance) => instance !== db);
 
       this.logResult(
-        "Performance Security Impact",
-        "PASS",
-        `Performance impact acceptable - worst case: ${worstCaseTime}ms, memory: ${memoryIncreaseMB.toFixed(2)}MB`,
+        'Performance Security Impact',
+        'PASS',
+        `Performance impact acceptable - worst case: ${worstCaseTime}ms, memory: ${memoryIncreaseMB.toFixed(2)}MB`
       );
     } catch (error) {
       this.logResult(
-        "Performance Security Impact",
-        "FAIL",
+        'Performance Security Impact',
+        'FAIL',
         `Performance security test failed: ${error.message}`,
-        "high",
+        'high'
       );
     }
   }
 
   async testWalRecovery() {
-    console.log("🔑 Testing WAL Recovery...\n");
+    console.log('🔑 Testing WAL Recovery...\n');
 
     const encryptionKey = generateEncryptionKey();
     const testSubDir = path.join(this.testDir, `wal-recovery-${Date.now()}`);
@@ -688,14 +688,14 @@ class SlimCryptDBSecurityTester {
     await db3.ready();
     this.dbInstances.push(db3);
 
-    await db3.createTable("secure_data");
+    await db3.createTable('secure_data');
     const testData = {
-      secret: "top_secret_information",
-      level: "classified",
+      secret: 'top_secret_information',
+      level: 'classified',
       timestamp: Date.now(),
     };
 
-    const addedData = await db3.addData("secure_data", testData);
+    const addedData = await db3.addData('secure_data', testData);
     console.log(`✓ Added test data with ID: ${addedData.id}`);
 
     // Ensure WAL is flushed before closing
@@ -716,18 +716,18 @@ class SlimCryptDBSecurityTester {
       const recoverySummary = db4.getWALRecoverySummary();
       if (recoverySummary.failures.length > 0) {
         throw new Error(
-          `WAL recovery had unexpected failures: ${JSON.stringify(recoverySummary.failures, null, 2)}`,
+          `WAL recovery had unexpected failures: ${JSON.stringify(recoverySummary.failures, null, 2)}`
         );
       }
 
       // Verify data was recovered correctly
-      const recoveredData = await db4.readData("secure_data", {});
+      const recoveredData = await db4.readData('secure_data', {});
       if (recoveredData.length === 0) {
-        throw new Error("No data recovered from WAL");
+        throw new Error('No data recovered from WAL');
       }
 
       const recoveredItem = recoveredData.find(
-        (item) => item.id === addedData.id,
+        (item) => item.id === addedData.id
       );
       if (!recoveredItem) {
         throw new Error(`Could not find item with ID ${addedData.id}`);
@@ -745,20 +745,20 @@ class SlimCryptDBSecurityTester {
 
       await db4.close();
       this.dbInstances = this.dbInstances.filter(
-        (instance) => instance !== db4,
+        (instance) => instance !== db4
       );
 
       this.logResult(
-        "WAL Recovery",
-        "PASS",
-        "WAL encryption and recovery working correctly",
+        'WAL Recovery',
+        'PASS',
+        'WAL encryption and recovery working correctly'
       );
     } catch (error) {
       this.logResult(
-        "WAL Recovery",
-        "FAIL",
+        'WAL Recovery',
+        'FAIL',
         `WAL recovery failed: ${error.message}`,
-        "critical",
+        'critical'
       );
     }
   }
@@ -767,8 +767,8 @@ class SlimCryptDBSecurityTester {
     try {
       await this.setup();
 
-      console.log("🔒 SlimCryptDB Security Assessment");
-      console.log("=".repeat(50));
+      console.log('🔒 SlimCryptDB Security Assessment');
+      console.log('='.repeat(50));
 
       // Run tests sequentially with proper isolation
       await this.testEncryptionStrength();
@@ -783,7 +783,7 @@ class SlimCryptDBSecurityTester {
       await this.testKeyManagementSecurity();
       await this.testPerformanceSecurityImpact();
     } catch (error) {
-      console.error("❌ SlimCryptDB security test failed:", error.message);
+      console.error('❌ SlimCryptDB security test failed:', error.message);
     } finally {
       await this.cleanup();
       this.printSecurityReport();
@@ -791,18 +791,18 @@ class SlimCryptDBSecurityTester {
   }
 
   printSecurityReport() {
-    console.log("\n🛡️ SECURITY ASSESSMENT REPORT");
-    console.log("=".repeat(50));
+    console.log('\n🛡️ SECURITY ASSESSMENT REPORT');
+    console.log('='.repeat(50));
 
     const totalTests = this.testResults.length;
     const passedTests = this.testResults.filter(
-      (r) => r.status === "PASS",
+      (r) => r.status === 'PASS'
     ).length;
     const failedTests = this.testResults.filter(
-      (r) => r.status === "FAIL",
+      (r) => r.status === 'FAIL'
     ).length;
     const warningTests = this.testResults.filter(
-      (r) => r.status === "WARN",
+      (r) => r.status === 'WARN'
     ).length;
 
     console.log(`Total Tests: ${totalTests}`);
@@ -815,36 +815,36 @@ class SlimCryptDBSecurityTester {
     // Security score calculation
     const securityScore = Math.max(
       0,
-      100 - this.vulnerabilityCount * 25 - this.warningCount * 5,
+      100 - this.vulnerabilityCount * 25 - this.warningCount * 5
     );
 
     console.log(`🏆 Security Score: ${securityScore}/100`);
 
     if (securityScore >= 90) {
-      console.log("✅ EXCELLENT - Production ready");
+      console.log('✅ EXCELLENT - Production ready');
     } else if (securityScore >= 75) {
-      console.log("✅ GOOD - Minor issues to address");
+      console.log('✅ GOOD - Minor issues to address');
     } else if (securityScore >= 50) {
-      console.log("⚠️ FAIR - Significant issues need attention");
+      console.log('⚠️ FAIR - Significant issues need attention');
     } else {
-      console.log("❌ POOR - Critical security issues must be fixed");
+      console.log('❌ POOR - Critical security issues must be fixed');
     }
 
     // List critical issues
     const criticalIssues = this.testResults.filter(
       (r) =>
-        r.status === "FAIL" &&
-        (r.severity === "critical" || r.severity === "high"),
+        r.status === 'FAIL' &&
+        (r.severity === 'critical' || r.severity === 'high')
     );
 
     if (criticalIssues.length > 0) {
-      console.log("\n🚨 CRITICAL SECURITY ISSUES:");
+      console.log('\n🚨 CRITICAL SECURITY ISSUES:');
       criticalIssues.forEach((issue) => {
         console.log(`   • ${issue.test}: ${issue.details}`);
       });
     }
 
-    console.log("\n🔒 Security test completed!");
+    console.log('\n🔒 Security test completed!');
 
     // Exit with appropriate code
     process.exit(this.vulnerabilityCount > 0 ? 1 : 0);
