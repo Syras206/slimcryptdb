@@ -9,7 +9,7 @@
     "posttest": "npm run test:security",
     "test:watch": "jest --watch",
     "test:security": "npm audit && node security-test.js",
-    "test:minified": "npm run build:minify && node -e \"require('./dist/SlimCryptDB.min.js'); console.log('Minified build test passed');\"",
+    "test:minified": "npm run build:minify && node ./example.js",
     "prebuild": "npm run clean && npm run test",
     "build": "npm run build:minify && npm run docs",
     "build:minify": "terser SlimCryptDB.js --config-file terser.config.json --output dist/SlimCryptDB.min.js",
