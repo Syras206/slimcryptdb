@@ -1,10 +1,10 @@
-const fs = require("fs").promises;
-const fsSync = require("fs");
-const crypto = require("crypto");
-const EventEmitter = require("events");
-const zlib = require("zlib");
-const util = require("util");
-const path = require("path");
+const fs = require('fs').promises;
+const fsSync = require('fs');
+const crypto = require('crypto');
+const EventEmitter = require('events');
+const zlib = require('zlib');
+const util = require('util');
+const path = require('path');
 
 // Promisify compression functions
 const gzip = util.promisify(zlib.gzip);
@@ -77,8 +77,8 @@ class SlimCryptDB {
   async _initializeDatabase() {
     try {
       await fs.mkdir(this.databaseDir, { recursive: true });
-      await fs.mkdir(path.join(this.databaseDir, "wal"), { recursive: true });
-      await fs.mkdir(path.join(this.databaseDir, "indexes"), {
+      await fs.mkdir(path.join(this.databaseDir, 'wal'), { recursive: true });
+      await fs.mkdir(path.join(this.databaseDir, 'indexes'), {
         recursive: true,
       });
 
@@ -101,14 +101,14 @@ class SlimCryptDB {
    * Initialize WAL encryption salt and key with proper error handling
    */
   async _initializeWALEncryption() {
-    const saltPath = path.join(this.databaseDir, "wal", ".salt");
+    const saltPath = path.join(this.databaseDir, 'wal', '.salt');
 
     try {
       // Try to load existing salt
       const existingSalt = await fs.readFile(saltPath);
       this.walSalt = existingSalt;
     } catch (error) {
-      if (error.code === "ENOENT") {
+      if (error.code === 'ENOENT') {
         // Generate new salt if it doesn't exist
         this.walSalt = crypto.randomBytes(32);
         // Save salt for future use (only if encryption is enabled)
@@ -130,7 +130,7 @@ class SlimCryptDB {
 
     // Validate that encryption is properly set up
     if (this.options.encrypt && this.options.walEnabled && !this.walEncrypted) {
-      throw new Error("WAL encryption failed to initialize properly");
+      throw new Error('WAL encryption failed to initialize properly');
     }
   }
 
@@ -146,16 +146,16 @@ class SlimCryptDB {
    */
   _deriveWALKey() {
     if (!this.walSalt) {
-      throw new Error("WAL salt not initialized");
+      throw new Error('WAL salt not initialized');
     }
     if (!this.encryptionKey) {
-      throw new Error("Encryption key not provided");
+      throw new Error('Encryption key not provided');
     }
 
     // Validate encryption key hasn't been wiped
     const keySum = this.encryptionKey.reduce((sum, byte) => sum + byte, 0);
     if (keySum === 0) {
-      throw new Error("Encryption key has been wiped - cannot derive WAL key");
+      throw new Error('Encryption key has been wiped - cannot derive WAL key');
     }
 
     try {
@@ -165,7 +165,7 @@ class SlimCryptDB {
         this.walSalt,
         100000, // Strong iteration count
         32, // 256-bit key
-        "sha256",
+        'sha256'
       );
     } catch (error) {
       throw new Error(`WAL key derivation failed: ${error.message}`);
@@ -184,12 +184,12 @@ class SlimCryptDB {
       const plaintext = JSON.stringify(data);
       const iv = crypto.randomBytes(16); // Unique IV for each encryption
       const cipher = crypto.createCipheriv(
-        "aes-256-gcm",
+        'aes-256-gcm',
         this.encryptionKey,
-        iv,
+        iv
       );
 
-      let ciphertext = cipher.update(plaintext, "utf8");
+      let ciphertext = cipher.update(plaintext, 'utf8');
       ciphertext = Buffer.concat([ciphertext, cipher.final()]);
 
       const authTag = cipher.getAuthTag();
@@ -201,11 +201,11 @@ class SlimCryptDB {
 
       // Format: iv:authTag:ciphertext (all hex encoded)
       return (
-        iv.toString("hex") +
-        ":" +
-        authTag.toString("hex") +
-        ":" +
-        ciphertext.toString("hex")
+        iv.toString('hex') +
+        ':' +
+        authTag.toString('hex') +
+        ':' +
+        ciphertext.toString('hex')
       );
     } catch (error) {
       throw new Error(`Encryption failed: ${error.message}`);
@@ -220,19 +220,19 @@ class SlimCryptDB {
       try {
         return JSON.parse(encryptedData);
       } catch {
-        throw new Error("Invalid unencrypted data format");
+        throw new Error('Invalid unencrypted data format');
       }
     }
 
     try {
-      const parts = encryptedData.split(":");
+      const parts = encryptedData.split(':');
       if (parts.length !== 3) {
-        throw new Error("Invalid encrypted data format");
+        throw new Error('Invalid encrypted data format');
       }
 
-      const iv = Buffer.from(parts[0], "hex");
-      const authTag = Buffer.from(parts[1], "hex");
-      const ciphertext = Buffer.from(parts[2], "hex");
+      const iv = Buffer.from(parts[0], 'hex');
+      const authTag = Buffer.from(parts[1], 'hex');
+      const ciphertext = Buffer.from(parts[2], 'hex');
 
       // Strict validation of component sizes
       if (iv.length !== 16) {
@@ -240,17 +240,17 @@ class SlimCryptDB {
       }
       if (authTag.length !== 16) {
         throw new Error(
-          `Invalid authentication tag length: expected 16, got ${authTag.length}`,
+          `Invalid authentication tag length: expected 16, got ${authTag.length}`
         );
       }
       if (ciphertext.length === 0) {
-        throw new Error("Empty ciphertext");
+        throw new Error('Empty ciphertext');
       }
 
       const decipher = crypto.createDecipheriv(
-        "aes-256-gcm",
+        'aes-256-gcm',
         this.encryptionKey,
-        iv,
+        iv
       );
       decipher.setAuthTag(authTag);
 
@@ -262,11 +262,11 @@ class SlimCryptDB {
         // Enhanced authentication failure detection
         if (
           error.message.includes(
-            "Unsupported state or unable to authenticate data",
+            'Unsupported state or unable to authenticate data'
           ) ||
-          error.message.includes("authentication") ||
-          error.message.includes("auth") ||
-          error.code === "ERR_CRYPTO_AUTH_FAILED"
+          error.message.includes('authentication') ||
+          error.message.includes('auth') ||
+          error.code === 'ERR_CRYPTO_AUTH_FAILED'
         ) {
           throw new Error(`Authentication failed: data has been tampered with`);
         }
@@ -274,17 +274,17 @@ class SlimCryptDB {
       }
 
       // Validate plaintext is valid JSON
-      const plaintextStr = plaintext.toString("utf8");
+      const plaintextStr = plaintext.toString('utf8');
       try {
         return JSON.parse(plaintextStr);
       } catch (jsonError) {
         throw new Error(
-          `Authentication failed: decrypted data is not valid JSON`,
+          `Authentication failed: decrypted data is not valid JSON`
         );
       }
     } catch (error) {
       // Ensure authentication failures are properly categorized
-      if (error.message.includes("Authentication failed")) {
+      if (error.message.includes('Authentication failed')) {
         throw error;
       }
       throw new Error(`Decryption failed: ${error.message}`);
@@ -301,7 +301,7 @@ class SlimCryptDB {
 
     if (!this.walEncrypted || !this.walKey || !this.walSalt) {
       throw new Error(
-        "WAL encryption not properly initialized - cannot write unencrypted data",
+        'WAL encryption not properly initialized - cannot write unencrypted data'
       );
     }
 
@@ -312,18 +312,18 @@ class SlimCryptDB {
       // Use the cached WAL key (don't re-derive during encryption)
       const walKey = this.walKey;
       if (!walKey) {
-        throw new Error("WAL key not available during encryption");
+        throw new Error('WAL key not available during encryption');
       }
 
       // Create unique IV for this encryption
       const iv = crypto.randomBytes(16);
 
       // Convert JSON string to Buffer and apply padding
-      const plaintextBuffer = Buffer.from(plaintext, "utf8");
+      const plaintextBuffer = Buffer.from(plaintext, 'utf8');
       const paddedBuffer = this._applyWALPaddingBuffer(plaintextBuffer);
 
       // Create cipher with GCM mode
-      const cipher = crypto.createCipheriv("aes-256-gcm", walKey, iv);
+      const cipher = crypto.createCipheriv('aes-256-gcm', walKey, iv);
 
       // Encrypt the padded buffer
       let ciphertext = cipher.update(paddedBuffer);
@@ -334,12 +334,12 @@ class SlimCryptDB {
 
       // Format: WAL:iv:authTag:ciphertext (all hex encoded with WAL prefix)
       return (
-        "WAL:" +
-        iv.toString("hex") +
-        ":" +
-        authTag.toString("hex") +
-        ":" +
-        ciphertext.toString("hex")
+        'WAL:' +
+        iv.toString('hex') +
+        ':' +
+        authTag.toString('hex') +
+        ':' +
+        ciphertext.toString('hex')
       );
     } catch (error) {
       throw new Error(`WAL encryption failed: ${error.message}`);
@@ -354,45 +354,45 @@ class SlimCryptDB {
       try {
         return JSON.parse(encryptedData);
       } catch {
-        throw new Error("Invalid unencrypted WAL data format");
+        throw new Error('Invalid unencrypted WAL data format');
       }
     }
 
     try {
       // Check for WAL prefix
-      if (!encryptedData.startsWith("WAL:")) {
+      if (!encryptedData.startsWith('WAL:')) {
         // Handle legacy unencrypted WAL files
         try {
           return JSON.parse(encryptedData);
         } catch {
-          throw new Error("Invalid WAL data format");
+          throw new Error('Invalid WAL data format');
         }
       }
 
       if (!this.walEncrypted || !this.walKey) {
-        throw new Error("Cannot decrypt WAL data: encryption not initialized");
+        throw new Error('Cannot decrypt WAL data: encryption not initialized');
       }
 
       // Parse WAL format
       const walData = encryptedData.substring(4); // Remove 'WAL:' prefix
-      const parts = walData.split(":");
+      const parts = walData.split(':');
       if (parts.length !== 3) {
-        throw new Error("Invalid encrypted WAL data format");
+        throw new Error('Invalid encrypted WAL data format');
       }
 
       // Extract components
-      const iv = Buffer.from(parts[0], "hex");
-      const authTag = Buffer.from(parts[1], "hex");
-      const ciphertext = Buffer.from(parts[2], "hex");
+      const iv = Buffer.from(parts[0], 'hex');
+      const authTag = Buffer.from(parts[1], 'hex');
+      const ciphertext = Buffer.from(parts[2], 'hex');
 
       // Use the cached WAL key (don't re-derive during decryption)
       const walKey = this.walKey;
       if (!walKey) {
-        throw new Error("WAL key not available during decryption");
+        throw new Error('WAL key not available during decryption');
       }
 
       // Create decipher
-      const decipher = crypto.createDecipheriv("aes-256-gcm", walKey, iv);
+      const decipher = crypto.createDecipheriv('aes-256-gcm', walKey, iv);
       decipher.setAuthTag(authTag);
 
       // Decrypt to get padded buffer
@@ -403,7 +403,7 @@ class SlimCryptDB {
       const plaintextBuffer = this._removeWALPaddingBuffer(paddedBuffer);
 
       // Convert buffer back to string and parse JSON
-      const plaintext = plaintextBuffer.toString("utf8");
+      const plaintext = plaintextBuffer.toString('utf8');
       return JSON.parse(plaintext);
     } catch (error) {
       throw new Error(`WAL decryption failed: ${error.message}`);
@@ -446,7 +446,7 @@ class SlimCryptDB {
    */
   _removeWALPaddingBuffer(paddedBuffer) {
     if (paddedBuffer.length < 4) {
-      throw new Error("Invalid padded buffer: too short");
+      throw new Error('Invalid padded buffer: too short');
     }
 
     // Read original length from last 4 bytes (big-endian)
@@ -467,8 +467,8 @@ class SlimCryptDB {
     if (!this.options.compression) return data;
 
     try {
-      if (typeof data === "string") {
-        return await gzip(Buffer.from(data, "utf8"));
+      if (typeof data === 'string') {
+        return await gzip(Buffer.from(data, 'utf8'));
       } else if (Buffer.isBuffer(data)) {
         return await gzip(data);
       }
@@ -476,8 +476,8 @@ class SlimCryptDB {
     } catch (error) {
       // If compression fails, return original data
       console.warn(
-        "Compression failed, using uncompressed data:",
-        error.message,
+        'Compression failed, using uncompressed data:',
+        error.message
       );
       return data;
     }
@@ -492,13 +492,13 @@ class SlimCryptDB {
     try {
       if (Buffer.isBuffer(compressedData)) {
         const decompressed = await gunzip(compressedData);
-        return decompressed.toString("utf8");
+        return decompressed.toString('utf8');
       }
       return compressedData;
     } catch (error) {
       // If decompression fails, assume data is not compressed
       if (Buffer.isBuffer(compressedData)) {
-        return compressedData.toString("utf8");
+        return compressedData.toString('utf8');
       }
       return compressedData;
     }
@@ -538,7 +538,7 @@ class SlimCryptDB {
   async _flushWAL() {
     if (this.walBuffer.length === 0 || this.isClosed) return;
 
-    const walFile = path.join(this.databaseDir, "wal", `wal-${Date.now()}.log`);
+    const walFile = path.join(this.databaseDir, 'wal', `wal-${Date.now()}.log`);
 
     // Encrypt each WAL entry individually to maintain entry boundaries
     const encryptedEntries = this.walBuffer.map((entry) => {
@@ -546,7 +546,7 @@ class SlimCryptDB {
       return encryptedEntry;
     });
 
-    const walData = encryptedEntries.join("\n") + "\n";
+    const walData = encryptedEntries.join('\n') + '\n';
 
     // Initialize the file directory if it doesn't exist
     try {
@@ -555,7 +555,7 @@ class SlimCryptDB {
       // Directory already exists
     }
 
-    await fs.writeFile(walFile, walData, { flag: "a" });
+    await fs.writeFile(walFile, walData, { flag: 'a' });
     this.walBuffer = [];
   }
 
@@ -566,12 +566,12 @@ class SlimCryptDB {
     // Ensure encryption is initialized before recovery
     if (this.options.encrypt && this.options.walEnabled) {
       if (!this.walEncrypted || !this.walKey) {
-        throw new Error("WAL encryption not properly initialized for recovery");
+        throw new Error('WAL encryption not properly initialized for recovery');
       }
     }
 
-    const walDir = path.join(this.databaseDir, "wal");
-    let recoveryFailures = [];
+    const walDir = path.join(this.databaseDir, 'wal');
+    const recoveryFailures = [];
     let recoveredEntries = 0;
 
     // Check if WAL directory exists
@@ -583,16 +583,16 @@ class SlimCryptDB {
     }
 
     const walFiles = await fs.readdir(walDir);
-    const logFiles = walFiles.filter((file) => file.endsWith(".log")).sort();
+    const logFiles = walFiles.filter((file) => file.endsWith('.log')).sort();
 
     for (const walFile of logFiles) {
-      if (walFile === ".salt") continue;
+      if (walFile === '.salt') continue;
 
       const walPath = path.join(walDir, walFile);
 
       try {
-        const walContent = await fs.readFile(walPath, "utf8");
-        const walEntries = walContent.trim().split("\n").filter(Boolean);
+        const walContent = await fs.readFile(walPath, 'utf8');
+        const walEntries = walContent.trim().split('\n').filter(Boolean);
 
         for (const entryLine of walEntries) {
           try {
@@ -603,19 +603,19 @@ class SlimCryptDB {
           } catch (error) {
             // Log and track failed WAL entry
             console.warn(
-              `[WAL RECOVERY] Failed to process entry in ${walFile}: ${error.message}`,
+              `[WAL RECOVERY] Failed to process entry in ${walFile}: ${error.message}`
             );
             recoveryFailures.push({
               file: walFile,
               entry:
-                entryLine.slice(0, 80) + (entryLine.length > 80 ? "..." : ""),
+                entryLine.slice(0, 80) + (entryLine.length > 80 ? '...' : ''),
               error: error.message,
             });
           }
         }
       } catch (error) {
         console.warn(
-          `[WAL RECOVERY] Failed to process WAL file ${walFile}: ${error.message}`,
+          `[WAL RECOVERY] Failed to process WAL file ${walFile}: ${error.message}`
         );
         recoveryFailures.push({
           file: walFile,
@@ -628,13 +628,10 @@ class SlimCryptDB {
     // Summary report for audit and testing
     if (recoveryFailures.length > 0) {
       console.warn(
-        `[WAL RECOVERY] Completed with ${recoveryFailures.length} failures and ${recoveredEntries} successful entries.`,
+        `[WAL RECOVERY] Completed with ${recoveryFailures.length} failures and ${recoveredEntries} successful entries.`
       );
       this.lastWALRecoveryFailures = recoveryFailures;
     } else {
-      console.info(
-        `[WAL RECOVERY] All WAL entries recovered successfully (${recoveredEntries} entries).`,
-      );
       this.lastWALRecoveryFailures = [];
     }
   }
@@ -643,7 +640,7 @@ class SlimCryptDB {
     return {
       failures: this.lastWALRecoveryFailures || [],
       successCount:
-        typeof this.lastWALRecoveryFailures === "undefined"
+        typeof this.lastWALRecoveryFailures === 'undefined'
           ? null
           : this.lastWALRecoveryFailures.length || 0,
     };
@@ -657,18 +654,18 @@ class SlimCryptDB {
 
     // Verify checksum
     if (this._calculateChecksum(operation) !== walEntry.checksum) {
-      throw new Error("WAL entry checksum mismatch");
+      throw new Error('WAL entry checksum mismatch');
     }
 
     // Apply operation based on type
     switch (operation.type) {
-      case "write":
+      case 'write':
         await this._writeDataDirect(operation.tableName, operation.data);
         break;
-      case "create_table":
+      case 'create_table':
         await this._createTableDirect(operation.tableName, operation.schema);
         break;
-      case "delete_table":
+      case 'delete_table':
         await this._deleteTableDirect(operation.tableName);
         break;
     }
@@ -679,9 +676,9 @@ class SlimCryptDB {
    */
   _calculateChecksum(data) {
     return crypto
-      .createHash("sha256")
+      .createHash('sha256')
       .update(JSON.stringify(data))
-      .digest("hex");
+      .digest('hex');
   }
 
   /**
@@ -695,12 +692,12 @@ class SlimCryptDB {
       await this._flushWAL();
 
       // Clean up old WAL files
-      const walDir = path.join(this.databaseDir, "wal");
+      const walDir = path.join(this.databaseDir, 'wal');
       const walFiles = await fs.readdir(walDir);
       const cutoffTime = Date.now() - 24 * 60 * 60 * 1000; // 24 hours
 
       for (const walFile of walFiles) {
-        if (walFile === ".salt") continue;
+        if (walFile === '.salt') continue;
 
         const filePath = path.join(walDir, walFile);
 
@@ -745,13 +742,13 @@ class SlimCryptDB {
    * Basic JSON schema validation
    */
   _validateDataAgainstSchema(data, schema) {
-    if (schema.type == "array" && Array.isArray(data)) {
+    if (schema.type === 'array' && Array.isArray(data)) {
       // set array type as an object if schema type is array
-      schema.type = "object";
+      schema.type = 'object';
     }
     if (schema.type && typeof data !== schema.type) {
       throw new Error(
-        `Type mismatch: expected ${schema.type}, got ${typeof data}: ${JSON.stringify(data)}`,
+        `Type mismatch: expected ${schema.type}, got ${typeof data}: ${JSON.stringify(data)}`
       );
     }
 
@@ -794,18 +791,18 @@ class SlimCryptDB {
     }
 
     await this._writeWAL({
-      type: "create_table",
+      type: 'create_table',
       tableName,
       schema,
     });
 
     await this._createTableDirect(tableName, tableData);
 
-    this.eventEmitter.emit("createTable", tableName, tableData);
+    this.eventEmitter.emit('createTable', tableName, tableData);
 
     // Create default index on 'id' field if schema specifies it
     if (schema && schema.properties && schema.properties.id) {
-      await this.createIndex(tableName, "id_idx", ["id"]);
+      await this.createIndex(tableName, 'id_idx', ['id']);
     }
   }
 
@@ -831,7 +828,7 @@ class SlimCryptDB {
     }
 
     await this._writeWAL({
-      type: "delete_table",
+      type: 'delete_table',
       tableName,
     });
 
@@ -847,7 +844,7 @@ class SlimCryptDB {
       }
     }
 
-    this.eventEmitter.emit("deleteTable", tableName);
+    this.eventEmitter.emit('deleteTable', tableName);
   }
 
   async _deleteTableDirect(tableName) {
@@ -855,7 +852,7 @@ class SlimCryptDB {
     try {
       await fs.unlink(filePath);
     } catch (error) {
-      if (error.code !== "ENOENT") {
+      if (error.code !== 'ENOENT') {
         throw error;
       }
     }
@@ -865,7 +862,7 @@ class SlimCryptDB {
    * Enhanced indexing system
    */
   async createIndex(tableName, indexName, columns, options = {}) {
-    const indexType = options.type || "btree"; // btree or hash
+    const indexType = options.type || 'btree'; // btree or hash
     const isUnique = options.unique || false;
 
     const data = await this.readData(tableName, {});
@@ -876,7 +873,7 @@ class SlimCryptDB {
 
       if (isUnique && index.has(indexKey)) {
         throw new Error(
-          `Duplicate key violation for unique index: ${indexKey}`,
+          `Duplicate key violation for unique index: ${indexKey}`
         );
       }
 
@@ -897,7 +894,7 @@ class SlimCryptDB {
     // Persist index to disk
     await this._saveIndex(indexName);
 
-    this.eventEmitter.emit("createIndex", tableName, indexName);
+    this.eventEmitter.emit('createIndex', tableName, indexName);
   }
 
   /**
@@ -913,20 +910,20 @@ class SlimCryptDB {
     // Remove index file
     const indexPath = path.join(
       this.databaseDir,
-      "indexes",
-      `${indexName}.idx`,
+      'indexes',
+      `${indexName}.idx`
     );
     try {
       await fs.unlink(indexPath);
     } catch (error) {
-      if (error.code !== "ENOENT") {
+      if (error.code !== 'ENOENT') {
         throw error;
       }
     }
   }
 
   _buildIndexKey(item, columns) {
-    return columns.map((col) => item[col]).join("::");
+    return columns.map((col) => item[col]).join('::');
   }
 
   async _saveIndex(indexName) {
@@ -935,8 +932,8 @@ class SlimCryptDB {
 
     const indexPath = path.join(
       this.databaseDir,
-      "indexes",
-      `${indexName}.idx`,
+      'indexes',
+      `${indexName}.idx`
     );
     const indexData = {
       ...index,
@@ -955,8 +952,8 @@ class SlimCryptDB {
   /**
    * Enhanced transaction support with isolation
    */
-  async startTransaction(isolationLevel = "READ_COMMITTED") {
-    const transactionId = crypto.randomBytes(16).toString("hex");
+  async startTransaction(isolationLevel = 'READ_COMMITTED') {
+    const transactionId = crypto.randomBytes(16).toString('hex');
 
     this.transactions.set(transactionId, {
       id: transactionId,
@@ -988,7 +985,7 @@ class SlimCryptDB {
       }
 
       this.transactions.delete(transactionId);
-      this.eventEmitter.emit("commitTransaction", transactionId);
+      this.eventEmitter.emit('commitTransaction', transactionId);
     } catch (error) {
       await this.rollbackTransaction(transactionId);
       throw error;
@@ -1005,7 +1002,7 @@ class SlimCryptDB {
     }
 
     this.transactions.delete(transactionId);
-    this.eventEmitter.emit("rollbackTransaction", transactionId);
+    this.eventEmitter.emit('rollbackTransaction', transactionId);
   }
 
   /**
@@ -1032,14 +1029,14 @@ class SlimCryptDB {
 
     // Generate ID if not present
     if (!data.id) {
-      data.id = crypto.randomBytes(16).toString("hex");
+      data.id = crypto.randomBytes(16).toString('hex');
     }
 
     const transaction = this.transactions.get(transactionId);
     await this._acquireLock(tableName, transactionId);
 
     transaction.operations.push({
-      type: "add",
+      type: 'add',
       tableName,
       data: { ...data },
     });
@@ -1047,7 +1044,7 @@ class SlimCryptDB {
     // Update indexes
     await this._updateIndexesForAdd(tableName, data);
 
-    this.eventEmitter.emit("add", tableName, data);
+    this.eventEmitter.emit('add', tableName, data);
     return data;
   }
 
@@ -1065,7 +1062,7 @@ class SlimCryptDB {
           tableName,
           filter,
           updateData,
-          transactionId,
+          transactionId
         );
         await this.commitTransaction(transactionId);
         return result;
@@ -1104,7 +1101,7 @@ class SlimCryptDB {
       }
 
       transaction.operations.push({
-        type: "update",
+        type: 'update',
         tableName,
         oldData: { ...record },
         newData: updatedRecord,
@@ -1115,7 +1112,7 @@ class SlimCryptDB {
       await this._updateIndexesForUpdate(tableName, record, updatedRecord);
     }
 
-    this.eventEmitter.emit("update", tableName, recordsToUpdate, updateData);
+    this.eventEmitter.emit('update', tableName, recordsToUpdate, updateData);
     return recordsToUpdate.length;
   }
 
@@ -1155,7 +1152,7 @@ class SlimCryptDB {
     // Add delete operation for each record
     for (const record of recordsToDelete) {
       transaction.operations.push({
-        type: "delete",
+        type: 'delete',
         tableName,
         data: { ...record },
         id: record.id,
@@ -1165,7 +1162,7 @@ class SlimCryptDB {
       await this._updateIndexesForDelete(tableName, record);
     }
 
-    this.eventEmitter.emit("delete", tableName, recordsToDelete);
+    this.eventEmitter.emit('delete', tableName, recordsToDelete);
     return recordsToDelete.length;
   }
 
@@ -1204,7 +1201,7 @@ class SlimCryptDB {
             !index.data.get(newKey).includes(oldData.id)
           ) {
             throw new Error(
-              `Unique constraint violation for index ${indexName}`,
+              `Unique constraint violation for index ${indexName}`
             );
           }
 
@@ -1309,7 +1306,7 @@ class SlimCryptDB {
     for (const [indexName, index] of this.indexes) {
       if (index.tableName === tableName) {
         const condition = filter.conditions.find(
-          (c) => index.columns.includes(c.column) && c.operator === "==",
+          (c) => index.columns.includes(c.column) && c.operator === '=='
         );
 
         if (condition) {
@@ -1330,13 +1327,13 @@ class SlimCryptDB {
     const { operator, conditions } = filter;
 
     return data.filter((item) => {
-      if (operator === "and") {
+      if (operator === 'and') {
         return conditions.every((condition) =>
-          this._evaluateCondition(item, condition),
+          this._evaluateCondition(item, condition)
         );
-      } else if (operator === "or") {
+      } else if (operator === 'or') {
         return conditions.some((condition) =>
-          this._evaluateCondition(item, condition),
+          this._evaluateCondition(item, condition)
         );
       }
       return true;
@@ -1348,23 +1345,23 @@ class SlimCryptDB {
     const itemValue = item[column];
 
     switch (operator) {
-      case "==":
+      case '==':
         return itemValue === value;
-      case "!=":
+      case '!=':
         return itemValue !== value;
-      case ">":
+      case '>':
         return itemValue > value;
-      case ">=":
+      case '>=':
         return itemValue >= value;
-      case "<":
+      case '<':
         return itemValue < value;
-      case "<=":
+      case '<=':
         return itemValue <= value;
-      case "in":
+      case 'in':
         return Array.isArray(value) && value.includes(itemValue);
-      case "like":
-        return new RegExp(value, "i").test(itemValue);
-      case "contains":
+      case 'like':
+        return new RegExp(value, 'i').test(itemValue);
+      case 'contains':
         return new RegExp(value).test(itemValue);
       default:
         return false;
@@ -1372,14 +1369,14 @@ class SlimCryptDB {
   }
 
   _applySort(data, sort) {
-    const { column, direction = "asc" } = sort;
+    const { column, direction = 'asc' } = sort;
 
     return [...data].sort((a, b) => {
       const aVal = a[column];
       const bVal = b[column];
 
-      if (aVal < bVal) return direction === "asc" ? -1 : 1;
-      if (aVal > bVal) return direction === "asc" ? 1 : -1;
+      if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return direction === 'asc' ? 1 : -1;
       return 0;
     });
   }
@@ -1400,7 +1397,7 @@ class SlimCryptDB {
 
       const tableData = this._decryptData(data);
 
-      let rows = tableData.rows || [];
+      const rows = tableData.rows || [];
       return rows.filter((item) => {
         if (!Object.keys(query).length) return true;
 
@@ -1412,7 +1409,7 @@ class SlimCryptDB {
         });
       });
     } catch (error) {
-      if (error.code === "ENOENT") {
+      if (error.code === 'ENOENT') {
         throw new Error(`Table ${tableName} does not exist`);
       }
       throw error;
@@ -1519,13 +1516,13 @@ class SlimCryptDB {
    */
   async _applyOperation(operation) {
     switch (operation.type) {
-      case "add":
+      case 'add':
         await this._applyAddOperation(operation);
         break;
-      case "update":
+      case 'update':
         await this._applyUpdateOperation(operation);
         break;
-      case "delete":
+      case 'delete':
         await this._applyDeleteOperation(operation);
         break;
       default:
@@ -1550,7 +1547,7 @@ class SlimCryptDB {
     existingData.push(data);
 
     await this._writeWAL({
-      type: "write",
+      type: 'write',
       tableName,
       data: existingData,
     });
@@ -1575,7 +1572,7 @@ class SlimCryptDB {
     existingData[index] = newData;
 
     await this._writeWAL({
-      type: "write",
+      type: 'write',
       tableName,
       data: existingData,
     });
@@ -1600,7 +1597,7 @@ class SlimCryptDB {
     existingData.splice(index, 1);
 
     await this._writeWAL({
-      type: "write",
+      type: 'write',
       tableName,
       data: existingData,
     });
@@ -1622,7 +1619,7 @@ class SlimCryptDB {
       locks: this.locks.size,
       lockQueue: Array.from(this.lockQueue.values()).reduce(
         (sum, queue) => sum + queue.length,
-        0,
+        0
       ),
     };
   }
@@ -1630,7 +1627,7 @@ class SlimCryptDB {
   async _getTableCount() {
     try {
       const files = await fs.readdir(this.databaseDir);
-      return files.filter((file) => file.endsWith(".db")).length;
+      return files.filter((file) => file.endsWith('.db')).length;
     } catch {
       return 0;
     }
@@ -1710,7 +1707,7 @@ function createSecureDatabase(databaseDir, encryptionKey = null, options = {}) {
       walEnabled: true,
       syncWrites: true,
       ...options,
-    },
+    }
   );
 }
 

@@ -1,0 +1,24 @@
+{
+  "compress": {
+    "ecma": 2020,
+    "drop_console": false,
+    "drop_debugger": true,
+    "pure_funcs": ["console.info", "console.debug", "console.warn"],
+    "passes": 2
+  },
+  "mangle": {
+    "toplevel": true,
+    "keep_fnames": false,
+    "reserved": ["SlimCryptDB"]
+  },
+  "format": {
+    "comments": false,
+    "ecma": 2020
+  },
+  "sourceMap": {
+    "filename": "SlimCryptDB.min.js.map",
+    "url": "SlimCryptDB.min.js.map"
+  },
+  "keep_fnames": false,
+  "toplevel": true
+}

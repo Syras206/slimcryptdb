@@ -1,4 +1,4 @@
-// Type definitions for SlimCryptDB v2.2.1 - Enhanced with WAL Encryption
+// Type definitions for SlimCryptDB v2.2.2 - Enhanced with WAL Encryption
 // Project: SlimCryptDB
 // Definitions by: SlimCryptDB Contributors
 
