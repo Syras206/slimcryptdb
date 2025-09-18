@@ -886,6 +886,9 @@ class SlimCryptDB {
     ) {
       await this.createIndex(tableName, 'id_idx', ['id']);
     }
+
+    // Return table name for convenience (used by tests and callers)
+    return tableName;
   }
 
   async _createTableDirect(tableName, tableData) {
