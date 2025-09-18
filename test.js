@@ -72,9 +72,9 @@ describe('SlimCryptDB Tests', () => {
     };
 
     test('should create table with schema', async () => {
-      await expect(
-        db.createTable(tableName, userSchema)
-      ).resolves.toBeUndefined();
+      await expect(db.createTable(tableName, userSchema)).resolves.toBe(
+        tableName
+      );
     });
 
     test('should prevent duplicate table creation', async () => {
@@ -204,6 +204,58 @@ describe('SlimCryptDB Tests', () => {
       await expect(
         db.createIndex(tableName, 'name_age_idx', ['name', 'age'])
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('Schema validation', () => {
+    test('should validate data against schema', async () => {
+      const tableWithSchema = await db.createTable(
+        'table_with_schema',
+        {
+          name: { type: 'string' },
+          email: { type: 'string' },
+          age: { type: 'number', minimum: 0 },
+        },
+        { required: ['name', 'email'] }
+      );
+
+      await expect(
+        db.addData(tableWithSchema, {
+          name: 34,
+          email: 'alice@example.com',
+          age: 30,
+        })
+      ).rejects.toThrow('Invalid data format: name');
+
+      await expect(
+        db.addData(tableWithSchema, {
+          name: 'Alice Cooper',
+          email: 'alice@example.com',
+          age: -1,
+        })
+      ).rejects.toThrow('Invalid data format: age');
+
+      await expect(
+        db.addData(tableWithSchema, {
+          name: 'Alice Cooper',
+          age: 30,
+        })
+      ).rejects.toThrow('Missing required property: email');
+
+      await expect(
+        db.addData(tableWithSchema, {
+          email: 'alice@example.com',
+          age: 30,
+        })
+      ).rejects.toThrow('Missing required property: name');
+
+      await expect(
+        db.addData(tableWithSchema, {
+          name: 'Alice Cooper',
+          email: 'alice@example.com',
+          age: 30,
+        })
+      ).resolves.toBeDefined();
     });
   });
 

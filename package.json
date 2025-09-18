@@ -1,6 +1,6 @@
 {
   "name": "slimcryptdb",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "description": "A minimalist, ultra-secure embedded database for Node.js applications",
   "main": "dist/SlimCryptDB.min.js",
   "scripts": {
@@ -23,7 +23,9 @@
     "prepare": "npm run build",
     "prepublishOnly": "npm run test && npm run build",
     "size": "npm run build:minify && ls -lh dist/SlimCryptDB.min.js && gzip -c dist/SlimCryptDB.min.js | wc -c | xargs -I{} echo 'Gzipped: {} bytes'",
-    "validate": "npm run lint && npm run format:check && npm run test && npm run build"
+    "validate": "npm run lint && npm run format:check && npm run test && npm run build",
+    "perf": "node perf-test.js",
+    "perf:quick": "PERF_ITERATIONS=1 PERF_TABLE_SIZE=500 PERF_READS_PER_ITER=200 node perf-test.js"
   },
   "keywords": [
     "database",
