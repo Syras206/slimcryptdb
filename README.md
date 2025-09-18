@@ -508,6 +508,97 @@ const { SlimCryptDB, generateEncryptionKey } = require('slimcryptdb');
 - **Multi-node distributed systems** requiring eventual consistency
 - **Applications requiring SQL compatibility** with existing tools
 
+## 🧩 Schema Validation Deep Dive
+
+SlimCryptDB includes a lightweight JSON Schema validator to keep your data clean and predictable without adding heavy dependencies.
+
+When validation runs
+
+- On createTable: The schema you pass is normalized and stored for the table.
+- On addData: The payload is validated against the table schema before it is written.
+- On updateData: The updated record is validated after merging your changes with the existing item, before it is persisted.
+
+Two ways to define schemas
+
+1. Full JSON Schema-style (object with type and properties)
+
+```js
+await db.createTable('users', {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    name: { type: 'string', minLength: 1, maxLength: 100 },
+    email: { type: 'string', pattern: '^.+@.+\\..+$' },
+    age: { type: 'number', minimum: 0, maximum: 150 },
+  },
+  required: ['name', 'email'],
+});
+```
+
+2. Shorthand schema (properties map) with options.required
+
+```js
+await db.createTable(
+  'users',
+  {
+    id: { type: 'string' },
+    name: { type: 'string', minLength: 1 },
+    email: { type: 'string' },
+    age: { type: 'number', minimum: 0 },
+  },
+  { required: ['name', 'email'] }
+);
+```
+
+Both forms are normalized internally to a JSON Schema-like structure.
+
+Supported keywords
+
+- type: 'object' | 'string' | 'number' | 'array' (arrays are not deeply validated; see caveats)
+- properties: Nested property schemas for type: 'object'
+- required: Array of required property names
+- number constraints: minimum, maximum
+- string constraints: minLength, maxLength, pattern (RegExp is built from the provided string)
+- enum: Accept only values in the provided list
+
+Not implemented / ignored (to keep the core minimal)
+
+- format (e.g. 'email') is not enforced
+- additionalProperties is not enforced
+- items (for arrays) is not enforced (arrays are treated as primitive values for type checking)
+- advanced JSON Schema features (oneOf, anyOf, allOf, if/then/else, refs, etc.)
+
+Error messages
+
+- Type mismatch or constraint errors: "Invalid data format: <fieldPath>"
+- Missing required properties: "Missing required property: <name>"
+- Nested paths are included (e.g., "profile.address.street") to help locate the issue quickly.
+
+Examples
+
+```js
+// OK
+await db.addData('users', {
+  name: 'Alice',
+  email: 'alice@example.com',
+  age: 30,
+});
+
+// Fails (missing required)
+await db.addData('users', { name: 'Alice' });
+// -> Error: Missing required property: email
+
+// Fails (type/constraint)
+await db.addData('users', { name: 42, email: 'a@b.com' });
+// -> Error: Invalid data format: name
+```
+
+Tips
+
+- Prefer explicit string patterns for emails if you need validation (since format: 'email' is not enforced).
+- Use nested properties in your schema to validate deep structures; required applies to direct children of properties.
+- Consider creating indexes for fields you frequently query (e.g., email) after defining your schema.
+
 ## 📚 API Reference
 
 ### Core Methods
@@ -515,7 +606,7 @@ const { SlimCryptDB, generateEncryptionKey } = require('slimcryptdb');
 #### Database Management
 
 - `new SlimCryptDB(databaseDir, encryptionKey, options)` - Create database instance
-- `createTable(tableName, schema?)` - Create table with optional validation
+- `createTable(tableName, schema?, options?)` - Create table with optional validation; supports shorthand schema with `options.required`; returns table name
 - `deleteTable(tableName)` - Remove table and all data
 - `tableExists(tableName)` - Check if table exists
 - `close()` - Graceful shutdown with cleanup
