@@ -1,16 +1,15 @@
 # SlimCryptDB 🔐
 
-**A minimalist, ultra-secure embedded database for Node.js applications**
+**A minimalist encrypted embedded database for Node.js applications**
 
 [![npm version](https://badge.fury.io/js/slimcryptdb.svg)](https://badge.fury.io/js/slimcryptdb)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Security Rating](https://img.shields.io/badge/Security-A%2B-brightgreen.svg)](https://github.com/Syras206/slim-db)
 
-SlimCryptDB is a lightweight encrypted database designed specifically for security-conscious applications, edge computing, IoT devices, and serverless environments where traditional databases are overkill. With zero external dependencies and military-grade encryption, it delivers enterprise-level security in a compact package optimized for resource-constrained environments.
+SlimCryptDB is a lightweight encrypted database designed for security‑conscious applications, edge computing, IoT devices, and serverless environments where traditional databases may be overkill. It uses only Node.js built‑in modules at runtime and AES‑256‑GCM encryption to provide strong security in a compact package optimized for resource‑constrained environments.
 
 ## 🌟 Key Features
 
-### 🛡️ Military-Grade Security
+### 🛡️ Encryption and Integrity
 
 - **AES-256-GCM Encryption**: Unique IVs per operation with authentication
 - **Tamper Evidence**: Dual SHA-256 + GCM integrity checks
@@ -55,9 +54,6 @@ console.log('Store this key securely:', encryptionKey.toString('hex'));
 // Create database instance with the key
 const db = new SlimCryptDB('./data', encryptionKey);
 
-// wait until the database is ready
-await db.ready();
-
 // Define schema for data validation
 const userSchema = {
   type: 'object',
@@ -72,6 +68,7 @@ const userSchema = {
 
 async function quickStart() {
   try {
+    await db.ready();
     // Create table with validation
     await db.createTable('users', userSchema);
 
@@ -132,14 +129,14 @@ const db = new SlimCryptDB('./data', encryptionKey);
 ### Key Generation and Storage
 
 ```javascript
-const { generateEncryptionKey } = require(''slimcryptdb'')
-const fs = require('fs')
+const { generateEncryptionKey } = require('slimcryptdb');
+const fs = require('fs');
 
 // Generate new key (run once during setup)
-const key = generateEncryptionKey()
+const key = generateEncryptionKey();
 
 // Store in environment file (don't commit to git!)
-fs.appendFileSync('.env', `\nSLIMCRYPTDB_KEY=${key.toString('hex')}\n`)
+fs.appendFileSync('.env', `\nSLIMCRYPTDB_KEY=${key.toString('hex')}\n`);
 
 // Or store in secure key management service
 // AWS Secrets Manager, Azure Key Vault, etc.
@@ -163,8 +160,12 @@ async function getDbKey() {
 }
 
 // Usage
-const encryptionKey = await getDbKey();
-const db = new SlimCryptDB('./data', encryptionKey);
+(async () => {
+  const encryptionKey = await getDbKey();
+  const db = new SlimCryptDB('./data', encryptionKey);
+  await db.ready();
+  // use db...
+})();
 ```
 
 ## 📊 Complete CRUD Operations
@@ -172,89 +173,95 @@ const db = new SlimCryptDB('./data', encryptionKey);
 ### Transaction Management
 
 ```javascript
-// Atomic transaction with rollback support
-const txnId = await db.startTransaction('READ_COMMITTED');
+(async () => {
+  // Atomic transaction with rollback support
+  const txnId = await db.startTransaction('READ_COMMITTED');
 
-try {
-  // Multiple operations in one transaction
-  const user = await db.addData(
-    'users',
-    {
-      name: 'Bob Smith',
-      email: 'bob@example.com',
-    },
-    txnId
-  );
+  try {
+    // Multiple operations in one transaction
+    const user = await db.addData(
+      'users',
+      {
+        name: 'Bob Smith',
+        email: 'bob@example.com',
+      },
+      txnId
+    );
 
-  await db.updateData(
-    'users',
-    { id: user.id },
-    { verified: true, verifiedAt: new Date().toISOString() },
-    txnId
-  );
+    await db.updateData(
+      'users',
+      { id: user.id },
+      { verified: true, verifiedAt: new Date().toISOString() },
+      txnId
+    );
 
-  // Commit all changes atomically
-  await db.commitTransaction(txnId);
-  console.log('Transaction completed successfully');
-} catch (error) {
-  // Automatic rollback on any error
-  await db.rollbackTransaction(txnId);
-  console.error('Transaction failed:', error);
-}
+    // Commit all changes atomically
+    await db.commitTransaction(txnId);
+    console.log('Transaction completed successfully');
+  } catch (error) {
+    // Automatic rollback on any error
+    await db.rollbackTransaction(txnId);
+    console.error('Transaction failed:', error);
+  }
+})();
 ```
 
 ### Advanced Queries
 
 ```javascript
-// Complex filtering with multiple conditions
-const premiumUsers = await db.queryData('users', {
-  filter: {
-    operator: 'and',
-    conditions: [
-      { column: 'age', operator: '>=', value: 25 },
-      { column: 'verified', operator: '==', value: true },
-      {
-        operator: 'or',
-        conditions: [
-          { column: 'plan', operator: '==', value: 'premium' },
-          { column: 'credits', operator: '>', value: 1000 },
-        ],
-      },
-    ],
-  },
-  sort: { column: 'lastLogin', direction: 'desc' },
-  limit: 50,
-  offset: 0,
-});
+(async () => {
+  // Complex filtering with multiple conditions
+  const premiumUsers = await db.queryData('users', {
+    filter: {
+      operator: 'and',
+      conditions: [
+        { column: 'age', operator: '>=', value: 25 },
+        { column: 'verified', operator: '==', value: true },
+        {
+          operator: 'or',
+          conditions: [
+            { column: 'plan', operator: '==', value: 'premium' },
+            { column: 'credits', operator: '>', value: 1000 },
+          ],
+        },
+      ],
+    },
+    sort: { column: 'lastLogin', direction: 'desc' },
+    limit: 50,
+    offset: 0,
+  });
 
-// Bulk operations
-const updateCount = await db.updateData(
-  'users',
-  { verified: false },
-  {
-    status: 'pending_verification',
-    updatedAt: new Date().toISOString(),
-  }
-);
-console.log(`Updated ${updateCount} unverified users`);
+  // Bulk operations
+  const updateCount = await db.updateData(
+    'users',
+    { verified: false },
+    {
+      status: 'pending_verification',
+      updatedAt: new Date().toISOString(),
+    }
+  );
+  console.log(`Updated ${updateCount} unverified users`);
+})();
 ```
 
 ### High-Performance Indexing
 
 ```javascript
-// Create indexes for faster queries
-await db.createIndex('users', 'email_idx', ['email'], { unique: true });
-await db.createIndex('users', 'name_age_idx', ['name', 'age']);
+(async () => {
+  // Create indexes for faster queries
+  await db.createIndex('users', 'email_idx', ['email'], { unique: true });
+  await db.createIndex('users', 'name_age_idx', ['name', 'age']);
 
-// Queries automatically use appropriate indexes
-const userByEmail = await db.queryData('users', {
-  filter: {
-    operator: 'and',
-    conditions: [
-      { column: 'email', operator: '==', value: 'alice@example.com' },
-    ],
-  },
-}); // Uses email_idx for O(1) lookup
+  // Queries automatically use appropriate indexes
+  const userByEmail = await db.queryData('users', {
+    filter: {
+      operator: 'and',
+      conditions: [
+        { column: 'email', operator: '==', value: 'alice@example.com' },
+      ],
+    },
+  }); // Uses email_idx for O(1) lookup
+})();
 ```
 
 ## 📡 Real-Time Events
@@ -310,29 +317,34 @@ const db = new SlimCryptDB('./data', encryptionKey, {
 ### Edge Computing Benefits
 
 ```javascript
-// Perfect for IoT devices with limited storage
-const edgeDb = new SlimCryptDB('/tmp/sensor-data', encryptionKey, {
-  compression: true, // Reduces storage by 70-80%
-  walEnabled: false, // Disable for ultra-low storage if needed
-});
+(async () => {
+  const { SlimCryptDB, generateEncryptionKey } = require('slimcryptdb');
+  // Perfect for IoT devices with limited storage
+  const encryptionKey = generateEncryptionKey();
+  const edgeDb = new SlimCryptDB('/tmp/sensor-data', encryptionKey, {
+    compression: true, // Reduces storage by 70-80%
+    walEnabled: false, // Disable for ultra-low storage if needed
+  });
+  await edgeDb.ready();
 
-// Handles offline scenarios gracefully
-await edgeDb.addData('sensor_readings', {
-  deviceId: 'temp-01',
-  temperature: 23.5,
-  humidity: 45.2,
-  timestamp: Date.now(),
-  location: { lat: 40.7128, lng: -74.006 },
-});
+  // Handles offline scenarios gracefully
+  await edgeDb.addData('sensor_readings', {
+    deviceId: 'temp-01',
+    temperature: 23.5,
+    humidity: 45.2,
+    timestamp: Date.now(),
+    location: { lat: 40.7128, lng: -74.006 },
+  });
 
-// When connection restored, sync with cloud
-const unsyncedData = await edgeDb.queryData('sensor_readings', {
-  filter: {
-    operator: 'and',
-    conditions: [{ column: 'synced', operator: '!=', value: true }],
-  },
-});
-// Send unsyncedData to cloud...
+  // When connection restored, sync with cloud
+  const unsyncedData = await edgeDb.queryData('sensor_readings', {
+    filter: {
+      operator: 'and',
+      conditions: [{ column: 'synced', operator: '!=', value: true }],
+    },
+  });
+  // Send unsyncedData to cloud...
+})();
 ```
 
 ### Real-World Storage Impact
@@ -354,18 +366,24 @@ For edge deployments across multiple devices:
 ### Bandwidth Optimization
 
 ```javascript
-// Efficient for limited bandwidth environments
-const compressedData = await db.queryData('events', {
-  filter: {
-    operator: 'and',
-    conditions: [
-      { column: 'timestamp', operator: '>', value: Date.now() - 86400000 },
-    ],
-  },
-});
+(async () => {
+  const { SlimCryptDB, generateEncryptionKey } = require('slimcryptdb');
+  const db = new SlimCryptDB('./data', generateEncryptionKey());
+  await db.ready();
 
-// Built-in compression means smaller sync payloads
-// 1MB uncompressed → ~200KB compressed for transmission
+  // Efficient for limited bandwidth environments
+  const compressedData = await db.queryData('events', {
+    filter: {
+      operator: 'and',
+      conditions: [
+        { column: 'timestamp', operator: '>', value: Date.now() - 86400000 },
+      ],
+    },
+  });
+
+  // Built-in compression means smaller sync payloads
+  // 1MB uncompressed → ~200KB compressed for transmission
+})();
 ```
 
 ## 🛡️ Security Features
@@ -381,16 +399,18 @@ const compressedData = await db.queryData('events', {
 ### Data Integrity
 
 ```javascript
-// Automatic integrity verification
-try {
-  const data = await db.readData('sensitive_table', {});
-  // Data automatically verified and decrypted
-} catch (error) {
-  if (error.message.includes('Decryption failed')) {
-    console.error('Data integrity compromised!');
-    // Handle potential tampering
+(async () => {
+  // Automatic integrity verification (assumes `db` is initialized and ready)
+  try {
+    const data = await db.readData('sensitive_table', {});
+    // Data automatically verified and decrypted
+  } catch (error) {
+    if (error.message.includes('Decryption failed')) {
+      console.error('Data integrity compromised!');
+      // Handle potential tampering
+    }
   }
-}
+})();
 ```
 
 ## 🔄 Migration Guide
@@ -399,44 +419,49 @@ try {
 
 ```javascript
 // Before (better-sqlite3)
-const Database = require('better-sqlite3')
-const db = new Database('mydb.sqlite')
+const Database = require('better-sqlite3');
+const db = new Database('mydb.sqlite');
 
-const stmt = db.prepare('INSERT INTO users (name, email) VALUES (?, ?)')
-stmt.run('Alice', 'alice@example.com')
+const stmt = db.prepare('INSERT INTO users (name, email) VALUES (?, ?)');
+stmt.run('Alice', 'alice@example.com');
 
 // After (SlimCryptDB)
-const { SlimCryptDB, generateEncryptionKey } = require(''slimcryptdb'')
-const db = new SlimCryptDB('./data', generateEncryptionKey())
-await db.ready()
+const { SlimCryptDB, generateEncryptionKey } = require('slimcryptdb');
 
-await db.createTable('users', {
-  type: 'object',
-  properties: {
-    name: { type: 'string' },
-    email: { type: 'string' }
-  }
-})
+(async () => {
+  const db = new SlimCryptDB('./data', generateEncryptionKey());
+  await db.ready();
 
-await db.addData('users', { name: 'Alice', email: 'alice@example.com' })
+  await db.createTable('users', {
+    type: 'object',
+    properties: {
+      name: { type: 'string' },
+      email: { type: 'string' },
+    },
+  });
+
+  await db.addData('users', { name: 'Alice', email: 'alice@example.com' });
+})();
 ```
 
 ### From NeDB
 
 ```javascript
 // Before (NeDB)
-const Datastore = require('nedb')
-const db = new Datastore({ filename: 'datafile.db', autoload: true })
+const Datastore = require('nedb');
+const db = new Datastore({ filename: 'datafile.db', autoload: true });
 
-db.insert({ name: 'Alice', email: 'alice@example.com' }, callback)
+db.insert({ name: 'Alice', email: 'alice@example.com' }, callback);
 
 // After (SlimCryptDB)
-const { SlimCryptDB, generateEncryptionKey } = require(''slimcryptdb'')
-const db = new SlimCryptDB('./data', generateEncryptionKey())
+const { SlimCryptDB, generateEncryptionKey } = require('slimcryptdb');
 
-await db.ready()
-await db.createTable('users')
-await db.addData('users', { name: 'Alice', email: 'alice@example.com' })
+(async () => {
+  const db = new SlimCryptDB('./data', generateEncryptionKey());
+  await db.ready();
+  await db.createTable('users');
+  await db.addData('users', { name: 'Alice', email: 'alice@example.com' });
+})();
 ```
 
 ## 🚦 Best Practices
@@ -537,11 +562,19 @@ await db.addData('users', { name: 'Alice', email: 'alice@example.com' })
 // Cause: Large result sets
 // Solution: Use pagination with limit/offset
 
-const results = await db.queryData('large_table', {
-  limit: 100,
-  offset: page * 100,
-  sort: { column: 'id', direction: 'asc' },
-});
+(async () => {
+  const { SlimCryptDB, generateEncryptionKey } = require('slimcryptdb');
+  const db = new SlimCryptDB('./data', generateEncryptionKey());
+  await db.ready();
+
+  const page = 0; // example page index
+  const results = await db.queryData('large_table', {
+    limit: 100,
+    offset: page * 100,
+    sort: { column: 'id', direction: 'asc' },
+  });
+  console.log(results);
+})();
 ```
 
 ## 🤝 Contributing
