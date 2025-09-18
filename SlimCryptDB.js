@@ -739,20 +739,90 @@ class SlimCryptDB {
   }
 
   /**
-   * Basic JSON schema validation
+   * Normalize provided schema. Accepts either full JSON schema or a shorthand
+   * where the second argument is a properties object and options.required lists required fields.
    */
-  _validateDataAgainstSchema(data, schema) {
-    if (schema.type === 'array' && Array.isArray(data)) {
-      // set array type as an object if schema type is array
-      schema.type = 'object';
-    }
-    if (schema.type && typeof data !== schema.type) {
-      throw new Error(
-        `Type mismatch: expected ${schema.type}, got ${typeof data}: ${JSON.stringify(data)}`
-      );
+  _normalizeSchema(schema, options = {}) {
+    if (!schema) return null;
+
+    // If schema already looks like a full JSON schema (has type and properties), clone and return
+    if (schema.type && schema.properties) {
+      return JSON.parse(JSON.stringify(schema));
     }
 
-    if (schema.properties) {
+    // Treat given object as properties map (shorthand)
+    const normalized = {
+      type: 'object',
+      properties: JSON.parse(JSON.stringify(schema)),
+    };
+
+    // Merge required from options or from schema.required if present
+    const required = Array.isArray(options.required)
+      ? options.required
+      : Array.isArray(schema.required)
+        ? schema.required
+        : [];
+    if (required.length) normalized.required = [...required];
+
+    return normalized;
+  }
+
+  /**
+   * Basic JSON schema validation
+   */
+  _validateDataAgainstSchema(data, schema, keyPath = '') {
+    // Validate type if specified
+    if (schema.type) {
+      const actualType = Array.isArray(data) ? 'array' : typeof data;
+      if (actualType !== schema.type) {
+        const field = keyPath || 'data';
+        throw new Error(`Invalid data format: ${field}`);
+      }
+    }
+
+    const field = keyPath || 'data';
+    // Additional constraints
+    if (schema.type === 'number' && typeof data === 'number') {
+      if (typeof schema.minimum === 'number' && data < schema.minimum) {
+        throw new Error(`Invalid data format: ${field}`);
+      }
+      if (typeof schema.maximum === 'number' && data > schema.maximum) {
+        throw new Error(`Invalid data format: ${field}`);
+      }
+    }
+    if (schema.type === 'string' && typeof data === 'string') {
+      if (
+        typeof schema.minLength === 'number' &&
+        data.length < schema.minLength
+      ) {
+        throw new Error(`Invalid data format: ${field}`);
+      }
+      if (
+        typeof schema.maxLength === 'number' &&
+        data.length > schema.maxLength
+      ) {
+        throw new Error(`Invalid data format: ${field}`);
+      }
+      if (schema.pattern) {
+        const re = new RegExp(schema.pattern);
+        if (!re.test(data)) {
+          throw new Error(`Invalid data format: ${field}`);
+        }
+      }
+    }
+    if (Array.isArray(schema.enum)) {
+      if (!schema.enum.includes(data)) {
+        throw new Error(`Invalid data format: ${field}`);
+      }
+    }
+
+    // Validate object properties
+    if (
+      schema.properties &&
+      data &&
+      typeof data === 'object' &&
+      !Array.isArray(data)
+    ) {
       for (const [key, propSchema] of Object.entries(schema.properties)) {
         if (
           schema.required &&
@@ -762,7 +832,11 @@ class SlimCryptDB {
           throw new Error(`Missing required property: ${key}`);
         }
         if (key in data) {
-          this._validateDataAgainstSchema(data[key], propSchema);
+          this._validateDataAgainstSchema(
+            data[key],
+            propSchema,
+            keyPath ? `${keyPath}.${key}` : key
+          );
         }
       }
     }
@@ -771,29 +845,33 @@ class SlimCryptDB {
   }
 
   /**
-   * Create table with optional schema
+   * Create table with optional schema (supports shorthand schema plus options)
    */
-  async createTable(tableName, schema = null) {
+  async createTable(tableName, schema = null, options = {}) {
     if (this.tableExists(tableName)) {
       throw new Error(`Table ${tableName} already exists`);
     }
 
+    const normalizedSchema = schema
+      ? this._normalizeSchema(schema, options)
+      : null;
+
     const tableData = {
       name: tableName,
-      schema,
+      schema: normalizedSchema,
       rows: [],
       created: Date.now(),
       version: 1,
     };
 
-    if (schema) {
-      this.schemas.set(tableName, schema);
+    if (normalizedSchema) {
+      this.schemas.set(tableName, normalizedSchema);
     }
 
     await this._writeWAL({
       type: 'create_table',
       tableName,
-      schema,
+      schema: normalizedSchema,
     });
 
     await this._createTableDirect(tableName, tableData);
@@ -801,7 +879,11 @@ class SlimCryptDB {
     this.eventEmitter.emit('createTable', tableName, tableData);
 
     // Create default index on 'id' field if schema specifies it
-    if (schema && schema.properties && schema.properties.id) {
+    if (
+      normalizedSchema &&
+      normalizedSchema.properties &&
+      normalizedSchema.properties.id
+    ) {
       await this.createIndex(tableName, 'id_idx', ['id']);
     }
   }

@@ -126,11 +126,17 @@ declare class SlimCryptDB extends EventEmitter {
     constructor(databaseDir: string, encryptionKey?: Buffer | null, options?: SlimCryptDB.DatabaseOptions);
 
     /**
-     * Create a new table with optional schema validation
+     * Create a new table with optional schema validation (supports shorthand schema and options.required)
      * @param tableName Name of the table to create
-     * @param schema Optional JSON schema for validation
+     * @param schema Optional JSON schema for validation, or shorthand properties map
+     * @param options Optional schema options (e.g., { required: [...] })
+     * @returns The created table name
      */
-    createTable(tableName: string, schema?: SlimCryptDB.JSONSchema | null): Promise<void>;
+    createTable(
+        tableName: string,
+        schema?: SlimCryptDB.JSONSchema | Record<string, SlimCryptDB.JSONSchema> | null,
+        options?: { required?: string[] }
+    ): Promise<string>;
 
     /**
      * Delete a table and all its data
